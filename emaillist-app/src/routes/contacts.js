@@ -79,12 +79,14 @@ router.post("/", requireLogin, async (req, res) => {
   }
   try {
     await pool.query(
-      "INSERT INTO contacts (name, email, unsubscribe_token) VALUES ($1, $2, $3)",
+      `INSERT INTO contacts (name, email, unsubscribe_token) 
+       VALUES ($1, $2, $3)
+       ON CONFLICT (email) DO NOTHING`,
       [(name || "").trim(), String(email).trim().toLowerCase(), makeToken()]
     );
     res.json({ ok: true });
   } catch (err) {
-    if (err.code === "23505") { // unique_violation
+    if (err.code === "23505") { // unique_violation safety check
       return res.status(409).json({ error: "That email is already on your list." });
     }
     console.error("[contacts] add failed:", err.message);
@@ -151,15 +153,15 @@ router.post("/upload", requireLogin, upload.single("file"), async (req, res) => 
         const key = name.trim().toLowerCase();
         if (!key) return null;
         if (segmentCache.has(key)) return segmentCache.get(key);
-        const existing = await client.query("SELECT id FROM segments WHERE lower(name) = lower($1)", [name.trim()]);
-        let id;
-        if (existing.rows.length) {
-          id = existing.rows[0].id;
-        } else {
-          const inserted = await client.query("INSERT INTO segments (name) VALUES ($1) RETURNING id", [name.trim()]);
-          id = inserted.rows[0].id;
-          createdSegments.add(name.trim());
-        }
+        
+        // Atomically fetch or create segment without unique constraints failing
+        const { rows } = await client.query(
+          `INSERT INTO segments (name) VALUES ($1)
+           ON CONFLICT (lower(name)) DO UPDATE SET name = EXCLUDED.name
+           RETURNING id`,
+          [name.trim()]
+        );
+        const id = rows[0].id;
         segmentCache.set(key, id);
         return id;
       }
@@ -174,33 +176,52 @@ router.post("/upload", requireLogin, upload.single("file"), async (req, res) => 
           continue;
         }
 
-        const existingContact = await client.query("SELECT id FROM contacts WHERE lower(email) = lower($1)", [email]);
         let contactId = null;
 
         if (seenInFile.has(email)) {
           skippedDuplicate++;
-          contactId = existingContact.rows[0] ? existingContact.rows[0].id : null;
-        } else if (existingContact.rows.length) {
-          skippedDuplicate++;
-          contactId = existingContact.rows[0].id; // link existing contact to segments, but don't duplicate the row
-          seenInFile.add(email);
+          // Fetch existing contact ID for segment association
+          const existing = await client.query("SELECT id FROM contacts WHERE lower(email) = lower($1)", [email]);
+          contactId = existing.rows[0] ? existing.rows[0].id : null;
         } else {
           seenInFile.add(email);
-          const inserted = await client.query(
-            "INSERT INTO contacts (name, email, unsubscribe_token) VALUES ($1, $2, $3) RETURNING id",
+
+          // Atomic insert or non-destructive update
+          const result = await client.query(
+            `INSERT INTO contacts (name, email, unsubscribe_token)
+             VALUES ($1, $2, $3)
+             ON CONFLICT (email) DO UPDATE SET
+               name = CASE 
+                 WHEN EXCLUDED.name IS NOT NULL AND EXCLUDED.name != '' THEN EXCLUDED.name 
+                 ELSE contacts.name 
+               END
+             RETURNING id, (xmax = 0) AS is_inserted`,
             [name, email, makeToken()]
           );
-          contactId = inserted.rows[0].id;
-          added++;
+
+          contactId = result.rows[0].id;
+          const isInserted = result.rows[0].is_inserted;
+
+          if (isInserted) {
+            added++;
+          } else {
+            skippedDuplicate++;
+          }
         }
 
         if (contactId) {
           if (segmentName) {
             const segId = await resolveSegmentId(segmentName);
-            await client.query("INSERT INTO contact_segments (contact_id, segment_id) VALUES ($1, $2) ON CONFLICT DO NOTHING", [contactId, segId]);
+            await client.query(
+              "INSERT INTO contact_segments (contact_id, segment_id) VALUES ($1, $2) ON CONFLICT DO NOTHING",
+              [contactId, segId]
+            );
           }
           if (targetSegmentId) {
-            await client.query("INSERT INTO contact_segments (contact_id, segment_id) VALUES ($1, $2) ON CONFLICT DO NOTHING", [contactId, targetSegmentId]);
+            await client.query(
+              "INSERT INTO contact_segments (contact_id, segment_id) VALUES ($1, $2) ON CONFLICT DO NOTHING",
+              [contactId, targetSegmentId]
+            );
           }
         }
       }
@@ -220,7 +241,6 @@ router.post("/upload", requireLogin, upload.single("file"), async (req, res) => 
 });
 
 // GET /api/contacts/export - download CSV of contacts (with their segments)
-// Registered before the /:id route below so "export" is never swallowed as an id.
 router.get("/export", requireLogin, async (req, res) => {
   const { rows } = await pool.query("SELECT id, name, email, status FROM contacts ORDER BY created_at");
   const contacts = await attachSegments(rows);
@@ -248,8 +268,6 @@ router.get("/:id", requireLogin, async (req, res) => {
 });
 
 // GET /api/contacts/:id/activity - recent email activity for the contact detail page.
-// Pulled straight from email_events (the source of truth), joined to the
-// campaign each event belongs to, newest first.
 router.get("/:id/activity", requireLogin, async (req, res) => {
   const { rows } = await pool.query(`
     SELECT ee.event_type, ee.link_url, ee.occurred_at, c.id AS campaign_id, c.subject AS campaign_subject
