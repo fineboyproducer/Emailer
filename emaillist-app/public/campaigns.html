@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Campaigns · Email List</title>
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <div class="container">
+    <h1>Campaigns</h1>
+    <p class="subtitle">Everything you've sent. Click a campaign for the full report.</p>
+
+    <div class="card">
+      <div id="tableWrap"><div class="empty-state">Loading…</div></div>
+    </div>
+  </div>
+
+  <script src="/js/app.js"></script>
+  <script>
+    renderNav("/campaigns.html");
+
+    function statusLabel(c) {
+      if (c.status === "sent") return `<span class="status-pill active">Sent</span>`;
+      if (c.status === "partial") return `<span class="status-pill" style="border-color:#b3261e;color:#b3261e;">Partial (${c.failed_count} failed)</span>`;
+      return `<span class="status-pill" style="border-color:#b3261e;color:#b3261e;">Failed</span>`;
+    }
+
+    (async () => {
+      const { campaigns } = await api("/api/campaigns");
+      const wrap = document.getElementById("tableWrap");
+      if (!campaigns.length) {
+        wrap.innerHTML = `<div class="empty-state">You haven't sent anything yet. <a href="/compose.html">Create your first email</a>.</div>`;
+        return;
+      }
+      wrap.innerHTML = `
+        <table>
+          <thead><tr>
+            <th>Campaign</th><th>Recipients</th><th>Delivered</th><th>Open Rate</th><th>Click Rate</th><th>Unsubscribes</th><th>Date</th>
+          </tr></thead>
+          <tbody>
+            ${campaigns.map(c => `
+              <tr style="cursor:pointer;" onclick="location.href='/campaign.html?id=${c.id}'">
+                <td>
+                  ${escapeHtml(c.subject)}
+                  <div class="helptext" style="margin-top:2px;">${c.segment_names ? escapeHtml(c.segment_names) : "All active contacts"}</div>
+                </td>
+                <td>${formatNumber(c.recipient_count)}</td>
+                <td>${formatNumber(c.delivered)} <span class="helptext">(${formatRate(c.delivery_rate)})</span></td>
+                <td>${formatRate(c.open_rate)}</td>
+                <td>${formatRate(c.click_rate)}</td>
+                <td>${formatNumber(c.unsubscribed)}</td>
+                <td>${new Date(c.sent_at).toLocaleDateString()}</td>
+              </tr>
+            `).join("")}
+          </tbody>
+        </table>
+      `;
+    })();
+  </script>
+</body>
+</html>

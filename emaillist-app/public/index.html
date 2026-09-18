@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard · Email List</title>
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <div class="container">
+    <div style="display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:12px;margin-bottom:8px;">
+      <div>
+        <h1 style="margin-bottom:0;">Dashboard</h1>
+        <p class="subtitle" style="margin-bottom:0;">Your email list, at a glance.</p>
+      </div>
+      <div class="navlinks" style="border:1px solid var(--gray-300);border-radius:8px;padding:2px;">
+        <a href="#" data-range="today" class="range-tab">Today</a>
+        <a href="#" data-range="7d" class="range-tab">7 days</a>
+        <a href="#" data-range="30d" class="range-tab">30 days</a>
+        <a href="#" data-range="all" class="range-tab active">All time</a>
+      </div>
+    </div>
+    <div style="margin-bottom:28px;"></div>
+
+    <div class="stat-grid" id="statGrid">
+      <div class="stat"><div class="num">–</div><div class="label">Total contacts</div></div>
+      <div class="stat"><div class="num">–</div><div class="label">Active contacts</div></div>
+      <div class="stat"><div class="num">–</div><div class="label">Unsubscribed</div></div>
+      <div class="stat"><div class="num">–</div><div class="label">Segments</div></div>
+      <div class="stat"><div class="num">–</div><div class="label">Campaigns sent</div></div>
+    </div>
+
+    <div class="card">
+      <h2>Email performance</h2>
+      <p class="helptext" style="margin-top:-8px;margin-bottom:14px;" id="perfHelp">Across campaigns sent in the selected range.</p>
+      <div class="stat-grid" id="perfGrid" style="margin-bottom:0;">
+        <div class="stat"><div class="num">–</div><div class="label">Emails sent</div></div>
+        <div class="stat"><div class="num">–</div><div class="label">Delivery rate</div></div>
+        <div class="stat"><div class="num">–</div><div class="label">Open rate</div></div>
+        <div class="stat"><div class="num">–</div><div class="label">Click rate</div></div>
+        <div class="stat"><div class="num">–</div><div class="label">Unsubscribe rate</div></div>
+        <div class="stat"><div class="num">–</div><div class="label">Complaint rate</div></div>
+      </div>
+    </div>
+
+    <div class="action-row" style="margin-bottom:32px;">
+      <a class="btn" href="/compose.html">Create Email</a>
+      <a class="btn btn-secondary" href="/contacts.html">Contacts</a>
+      <a class="btn btn-secondary" href="/segments.html">Segments</a>
+      <a class="btn btn-secondary" href="/campaigns.html">Campaigns</a>
+    </div>
+
+    <div class="card">
+      <h2>Segments</h2>
+      <div id="segmentsWrap"><div class="empty-state">Loading…</div></div>
+    </div>
+
+    <div class="card">
+      <h2>Recent campaigns</h2>
+      <div id="campaignsWrap"><div class="empty-state">Loading…</div></div>
+    </div>
+  </div>
+
+  <script src="/js/app.js"></script>
+  <script>
+    renderNav("/index.html");
+    let currentRange = "all";
+
+    document.querySelectorAll(".range-tab").forEach(tab => {
+      tab.addEventListener("click", (e) => {
+        e.preventDefault();
+        currentRange = tab.dataset.range;
+        document.querySelectorAll(".range-tab").forEach(t => t.classList.remove("active"));
+        tab.classList.add("active");
+        load();
+      });
+    });
+
+    async function load() {
+      try {
+        const { totalContacts, active, unsubscribed, campaignsSent, segments, recentCampaigns, performance } =
+          await api(`/api/campaigns/dashboard?range=${currentRange}`);
+
+        const grid = document.getElementById("statGrid");
+        const stats = [
+          [totalContacts, "Total contacts"],
+          [active, "Active contacts"],
+          [unsubscribed, "Unsubscribed"],
+          [segments.length, "Segments"],
+          [campaignsSent, "Campaigns sent" + (currentRange !== "all" ? " (in range)" : "")],
+        ];
+        grid.innerHTML = stats.map(([num, label]) => `
+          <div class="stat"><div class="num">${num}</div><div class="label">${label}</div></div>
+        `).join("");
+
+        const perfGrid = document.getElementById("perfGrid");
+        const perfStats = [
+          [formatNumber(performance.emailsSent), "Emails sent"],
+          [formatRate(performance.deliveryRate), "Delivery rate"],
+          [formatRate(performance.openRate), "Open rate"],
+          [formatRate(performance.clickRate), "Click rate"],
+          [formatRate(performance.unsubscribeRate), "Unsubscribe rate"],
+          [formatRate(performance.complaintRate), "Complaint rate"],
+        ];
+        perfGrid.innerHTML = perfStats.map(([num, label]) => `
+          <div class="stat"><div class="num">${num}</div><div class="label">${label}</div></div>
+        `).join("");
+
+        const segWrap = document.getElementById("segmentsWrap");
+        if (!segments.length) {
+          segWrap.innerHTML = `<div class="empty-state">No segments yet. <a href="/segments.html">Create one</a> to start organizing your list.</div>`;
+        } else {
+          segWrap.innerHTML = `
+            <table>
+              <tbody>
+                ${segments.map(s => `
+                  <tr>
+                    <td><a href="/segments.html?id=${s.id}">${escapeHtml(s.name)}</a></td>
+                    <td style="text-align:right;color:var(--gray-500);">${s.contact_count}</td>
+                  </tr>
+                `).join("")}
+              </tbody>
+            </table>
+          `;
+        }
+
+        const campWrap = document.getElementById("campaignsWrap");
+        if (!recentCampaigns.length) {
+          campWrap.innerHTML = `<div class="empty-state">You haven't sent anything yet. <a href="/compose.html">Create your first email</a>.</div>`;
+        } else {
+          campWrap.innerHTML = `
+            <table>
+              <thead><tr><th>Subject</th><th>Date</th><th>Recipients</th><th>Status</th></tr></thead>
+              <tbody>
+                ${recentCampaigns.map(c => `
+                  <tr>
+                    <td><a href="/campaign.html?id=${c.id}">${escapeHtml(c.subject)}</a></td>
+                    <td>${new Date(c.sent_at).toLocaleDateString()}</td>
+                    <td>${c.recipient_count}</td>
+                    <td><span class="status-pill ${c.status === 'sent' ? 'active' : ''}">${c.status}</span></td>
+                  </tr>
+                `).join("")}
+              </tbody>
+            </table>
+          `;
+        }
+      } catch (err) {
+        console.error(err);
+      }
+    }
+
+    load();
+  </script>
+</body>
+</html>

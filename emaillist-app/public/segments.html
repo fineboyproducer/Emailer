@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Segments · Email List</title>
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <div class="container">
+    <div id="listView">
+      <h1>Segments</h1>
+      <p class="subtitle">Group your contacts however makes sense to you. A contact can belong to as many segments as you like.</p>
+
+      <div id="msg" class="msg" style="display:none;"></div>
+
+      <div class="card">
+        <h2>Create a segment</h2>
+        <form id="createForm">
+          <div class="field-row">
+            <div class="field">
+              <label for="segName">Name</label>
+              <input type="text" id="segName" placeholder="Artists" required>
+            </div>
+            <div class="field">
+              <label for="segDesc">Description (optional)</label>
+              <input type="text" id="segDesc" placeholder="Musicians I work with">
+            </div>
+          </div>
+          <button class="btn" type="submit">Create segment</button>
+        </form>
+      </div>
+
+      <div class="card">
+        <h2>All segments</h2>
+        <div id="segList"><div class="empty-state">Loading…</div></div>
+      </div>
+    </div>
+
+    <div id="detailView" style="display:none;">
+      <button class="link-btn" id="backBtn" style="margin-bottom:16px;">&larr; All segments</button>
+      <h1 id="detailName"></h1>
+      <p class="subtitle" id="detailDesc"></p>
+      <div id="detailMsg" class="msg" style="display:none;"></div>
+
+      <div class="card">
+        <h2>Add contacts to this segment</h2>
+        <div class="field">
+          <label for="addSearch">Search contacts by name or email</label>
+          <input type="text" id="addSearch" placeholder="Start typing…">
+        </div>
+        <div id="addResults"></div>
+      </div>
+
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+          <h2 style="margin:0;">Contacts in this segment (<span id="memberCount">0</span>)</h2>
+        </div>
+        <div id="memberList"><div class="empty-state">Loading…</div></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="/js/app.js"></script>
+  <script>
+    renderNav("/segments.html");
+    const msg = document.getElementById("msg");
+    const params = new URLSearchParams(location.search);
+    let currentSegmentId = params.get("id");
+
+    let segmentsCache = [];
+
+    async function loadList() {
+      const { segments } = await api("/api/segments");
+      segmentsCache = segments;
+      const wrap = document.getElementById("segList");
+      if (!segments.length) {
+        wrap.innerHTML = `<div class="empty-state">No segments yet. Create one above.</div>`;
+        return;
+      }
+      wrap.innerHTML = `
+        <table>
+          <thead><tr>
+            <th>Name</th><th>Contacts</th><th>Active</th><th>Campaigns sent</th>
+            <th>Avg open rate</th><th>Avg click rate</th><th></th>
+          </tr></thead>
+          <tbody>
+            ${segments.map(s => `
+              <tr>
+                <td>
+                  <a href="/segments.html?id=${s.id}">${escapeHtml(s.name)}</a>
+                  ${s.description ? `<div class="helptext" style="margin-top:2px;">${escapeHtml(s.description)}</div>` : ""}
+                </td>
+                <td>${s.contact_count}</td>
+                <td>${s.active_count}</td>
+                <td>${s.campaigns_sent}</td>
+                <td>${formatRate(s.avg_open_rate)}</td>
+                <td>${formatRate(s.avg_click_rate)}</td>
+                <td>
+                  <button class="btn btn-secondary btn-sm" data-rename="${s.id}">Rename</button>
+                  <button class="btn btn-danger btn-sm" data-delete="${s.id}">Delete</button>
+                </td>
+              </tr>
+            `).join("")}
+          </tbody>
+        </table>
+        <p class="helptext" style="margin-top:14px;">
+          "Avg open/click rate" is the average across campaigns that targeted this segment at the time they were
+          sent — it doesn't recalculate based on who's in the segment today, and campaigns with no delivered
+          emails yet aren't counted.
+        </p>
+      `;
+      wrap.querySelectorAll("[data-rename]").forEach(btn => {
+        btn.addEventListener("click", () => {
+          const s = segmentsCache.find(x => String(x.id) === btn.dataset.rename);
+          renameSegment(s.id, s.name, s.description || "");
+        });
+      });
+      wrap.querySelectorAll("[data-delete]").forEach(btn => {
+        btn.addEventListener("click", () => {
+          const s = segmentsCache.find(x => String(x.id) === btn.dataset.delete);
+          deleteSegment(s.id, s.name);
+        });
+      });
+    }
+
+    function renameSegment(id, currentName, currentDesc) {
+      const { close } = openModal(`
+        <h2>Rename segment</h2>
+        <div class="field" style="margin-top:16px;">
+          <label>Name</label>
+          <input type="text" id="renameName" value="${escapeHtml(currentName)}">
+        </div>
+        <div class="field">
+          <label>Description</label>
+          <input type="text" id="renameDesc" value="${escapeHtml(currentDesc)}">
+        </div>
+        <div class="modal-actions">
+          <button class="btn btn-secondary" id="cancelRename">Cancel</button>
+          <button class="btn" id="saveRename">Save</button>
+        </div>
+      `);
+      document.getElementById("cancelRename").addEventListener("click", close);
+      document.getElementById("saveRename").addEventListener("click", async () => {
+        const name = document.getElementById("renameName").value;
+        const description = document.getElementById("renameDesc").value;
+        try {
+          await api(`/api/segments/${id}`, { method: "PUT", body: JSON.stringify({ name, description }) });
+          close();
+          loadList();
+        } catch (err) {
+          alert(err.message);
+        }
+      });
+    }
+
+    function deleteSegment(id, name) {
+      const { close } = openModal(`
+        <h2>Delete "${escapeHtml(name)}"?</h2>
+        <p style="color:var(--gray-700);margin-top:10px;">This removes the segment. Contacts inside it are kept — only the grouping is deleted.</p>
+        <div class="modal-actions">
+          <button class="btn btn-secondary" id="cancelDelete">Cancel</button>
+          <button class="btn btn-danger" style="border-color:#b3261e;" id="confirmDelete">Delete segment</button>
+        </div>
+      `);
+      document.getElementById("cancelDelete").addEventListener("click", close);
+      document.getElementById("confirmDelete").addEventListener("click", async () => {
+        await api(`/api/segments/${id}`, { method: "DELETE" });
+        close();
+        loadList();
+      });
+    }
+
+    document.getElementById("createForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      hideMsg(msg);
+      const name = document.getElementById("segName").value;
+      const description = document.getElementById("segDesc").value;
+      try {
+        await api("/api/segments", { method: "POST", body: JSON.stringify({ name, description }) });
+        document.getElementById("createForm").reset();
+        loadList();
+        showMsg(msg, "Segment created.", "success");
+      } catch (err) {
+        showMsg(msg, err.message);
+      }
+    });
+
+    // --- Detail view ---
+    const detailMsg = document.getElementById("detailMsg");
+
+    async function loadDetail() {
+      document.getElementById("listView").style.display = "none";
+      document.getElementById("detailView").style.display = "block";
+
+      const { segment, contacts } = await api(`/api/segments/${currentSegmentId}/contacts`);
+      document.getElementById("detailName").textContent = segment.name;
+      document.getElementById("memberCount").textContent = contacts.length;
+
+      const wrap = document.getElementById("memberList");
+      if (!contacts.length) {
+        wrap.innerHTML = `<div class="empty-state">No contacts in this segment yet. Search above to add some.</div>`;
+      } else {
+        wrap.innerHTML = `
+          <table>
+            <thead><tr><th>Name</th><th>Email</th><th>Status</th><th></th></tr></thead>
+            <tbody>
+              ${contacts.map(c => `
+                <tr>
+                  <td>${escapeHtml(c.name) || "—"}</td>
+                  <td>${escapeHtml(c.email)}</td>
+                  <td><span class="status-pill ${c.status}">${c.status}</span></td>
+                  <td><button class="btn btn-danger btn-sm" data-remove="${c.id}">Remove</button></td>
+                </tr>
+              `).join("")}
+            </tbody>
+          </table>
+        `;
+        wrap.querySelectorAll("[data-remove]").forEach(btn => {
+          btn.addEventListener("click", async () => {
+            await api(`/api/segments/${currentSegmentId}/contacts`, {
+              method: "DELETE",
+              body: JSON.stringify({ contactIds: [Number(btn.dataset.remove)] }),
+            });
+            loadDetail();
+          });
+        });
+      }
+    }
+
+    let searchTimer;
+    document.getElementById("addSearch").addEventListener("input", (e) => {
+      clearTimeout(searchTimer);
+      const term = e.target.value.trim();
+      searchTimer = setTimeout(() => runAddSearch(term), 250);
+    });
+
+    async function runAddSearch(term) {
+      const resultsWrap = document.getElementById("addResults");
+      if (!term) { resultsWrap.innerHTML = ""; return; }
+      const { contacts } = await api(`/api/contacts?search=${encodeURIComponent(term)}`);
+      if (!contacts.length) {
+        resultsWrap.innerHTML = `<p class="helptext">No contacts match "${escapeHtml(term)}".</p>`;
+        return;
+      }
+      resultsWrap.innerHTML = `
+        <div class="checkbox-list" style="margin-top:10px;">
+          ${contacts.slice(0, 25).map(c => `
+            <label>
+              <input type="checkbox" value="${c.id}" class="add-check">
+              ${escapeHtml(c.name) || escapeHtml(c.email)} <span style="color:var(--gray-500);">${c.name ? escapeHtml(c.email) : ""}</span>
+            </label>
+          `).join("")}
+        </div>
+        <button class="btn btn-secondary btn-sm" id="addSelectedBtn" style="margin-top:10px;">Add selected to segment</button>
+      `;
+      document.getElementById("addSelectedBtn").addEventListener("click", async () => {
+        const ids = Array.from(document.querySelectorAll(".add-check:checked")).map(cb => Number(cb.value));
+        if (!ids.length) return showMsg(detailMsg, "Select at least one contact.");
+        try {
+          await api(`/api/segments/${currentSegmentId}/contacts`, { method: "POST", body: JSON.stringify({ contactIds: ids }) });
+          document.getElementById("addSearch").value = "";
+          resultsWrap.innerHTML = "";
+          loadDetail();
+          showMsg(detailMsg, "Added.", "success");
+        } catch (err) {
+          showMsg(detailMsg, err.message);
+        }
+      });
+    }
+
+    document.getElementById("backBtn").addEventListener("click", () => {
+      currentSegmentId = null;
+      history.pushState({}, "", "/segments.html");
+      document.getElementById("detailView").style.display = "none";
+      document.getElementById("listView").style.display = "block";
+      loadList();
+    });
+
+    if (currentSegmentId) {
+      loadDetail();
+    } else {
+      loadList();
+    }
+  </script>
+</body>
+</html>

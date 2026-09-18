@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Log in · Email List</title>
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <div style="max-width:360px;margin:120px auto;padding:0 20px;">
+    <h1 style="margin-bottom:24px;">Email List</h1>
+    <div class="card">
+      <div id="msg" class="msg error" style="display:none;"></div>
+      <form id="loginForm">
+        <div class="field">
+          <label for="password">Password</label>
+          <input type="password" id="password" name="password" required autofocus>
+        </div>
+        <button type="submit" class="btn" style="width:100%;justify-content:center;">Log in</button>
+      </form>
+    </div>
+  </div>
+  <script src="/js/app.js"></script>
+  <script>
+    const msg = document.getElementById("msg");
+    document.getElementById("loginForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      hideMsg(msg);
+      const password = document.getElementById("password").value;
+      try {
+        await api("/api/auth/login", { method: "POST", body: JSON.stringify({ password }) });
+        window.location.href = "/index.html";
+      } catch (err) {
+        showMsg(msg, err.message);
+      }
+    });
+  </script>
+</body>
+</html>

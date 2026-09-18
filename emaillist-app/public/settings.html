@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Settings · Email List</title>
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <div class="container">
+    <h1>Settings</h1>
+    <p class="subtitle">Diagnostics for your deployment.</p>
+
+    <div class="card">
+      <h2>Resend Connection</h2>
+
+      <div class="detail-row">
+        <div class="label">Status</div>
+        <div id="statusValue">Checking…</div>
+      </div>
+      <div class="detail-row">
+        <div class="label">API key</div>
+        <div id="keyValue">–</div>
+      </div>
+      <div class="detail-row">
+        <div class="label">From</div>
+        <div id="fromValue">–</div>
+      </div>
+
+      <div id="testMsg" class="msg" style="display:none;margin-top:16px;"></div>
+
+      <div class="action-row" style="margin-top:16px;">
+        <button class="btn btn-secondary" id="testBtn">Test Resend Connection</button>
+      </div>
+
+      <p class="helptext" style="margin-top:16px;">
+        This only checks that the configured API key authenticates with Resend — it does not send an email.
+        Use "Send Test Email" on the Create Email page to confirm end-to-end delivery, and check your
+        <a href="https://resend.com/emails" target="_blank" rel="noopener">Resend dashboard's Emails log</a>
+        after doing so.
+      </p>
+    </div>
+  </div>
+
+  <script src="/js/app.js"></script>
+  <script>
+    renderNav("/settings.html");
+    const testMsg = document.getElementById("testMsg");
+
+    function pill(text, ok) {
+      return `<span class="status-pill ${ok ? "active" : ""}" style="${ok ? "" : "border-color:#b3261e;color:#b3261e;"}">${text}</span>`;
+    }
+
+    async function loadStatus() {
+      try {
+        const status = await api("/api/settings/resend-status");
+        document.getElementById("statusValue").innerHTML = status.configured
+          ? pill("Configured", true)
+          : pill("Not configured", false);
+        document.getElementById("keyValue").textContent = status.hasApiKey
+          ? status.apiKeyMasked
+          : "Not set — add RESEND_API_KEY in your hosting provider's environment variables";
+        document.getElementById("fromValue").textContent = status.fromEmail
+          ? (status.fromName ? `${status.fromName} <${status.fromEmail}>` : status.fromEmail)
+          : "Not set — add FROM_EMAIL in your hosting provider's environment variables";
+      } catch (err) {
+        document.getElementById("statusValue").innerHTML = pill("Could not check", false);
+      }
+    }
+
+    document.getElementById("testBtn").addEventListener("click", async () => {
+      hideMsg(testMsg);
+      const btn = document.getElementById("testBtn");
+      btn.disabled = true;
+      btn.textContent = "Testing…";
+      try {
+        await api("/api/settings/resend-test", { method: "POST" });
+        showMsg(testMsg, "Connected — Resend accepted the API key.", "success");
+      } catch (err) {
+        showMsg(testMsg, err.message);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = "Test Resend Connection";
+      }
+    });
+
+    loadStatus();
+  </script>
+</body>
+</html>

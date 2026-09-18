@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Contact · Email List</title>
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <div class="container">
+    <a href="/contacts.html" class="link-btn" style="display:inline-block;margin-bottom:16px;">&larr; All contacts</a>
+    <div id="wrap"><div class="empty-state">Loading…</div></div>
+  </div>
+
+  <script src="/js/app.js"></script>
+  <script>
+    renderNav("/contacts.html");
+    const params = new URLSearchParams(location.search);
+    const id = params.get("id");
+
+    const ACTIVITY_LABEL = {
+      sent: "Sent",
+      delivered: "Delivered",
+      delivery_delayed: "Delivery delayed",
+      bounced: "Bounced",
+      complained: "Marked as spam",
+      opened: "Opened",
+      clicked: "Clicked a link in",
+      unsubscribed: "Unsubscribed",
+      failed: "Failed to send",
+    };
+
+    function activityLine(a) {
+      const date = new Date(a.occurred_at).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+      const label = ACTIVITY_LABEL[a.event_type] || a.event_type;
+      if (a.event_type === "unsubscribed") {
+        return `${date} — Unsubscribed${a.campaign_subject ? ` (from "${escapeHtml(a.campaign_subject)}")` : ""}`;
+      }
+      if (a.event_type === "clicked" && a.link_url) {
+        return `${date} — Clicked <a href="${a.link_url}" target="_blank" rel="noopener">${escapeHtml(a.link_url)}</a>${a.campaign_subject ? ` in "${escapeHtml(a.campaign_subject)}"` : ""}`;
+      }
+      return `${date} — ${label}${a.campaign_subject ? ` "${escapeHtml(a.campaign_subject)}"` : ""}`;
+    }
+
+    (async () => {
+      if (!id) return;
+      const [{ contact }, { activity }] = await Promise.all([
+        api(`/api/contacts/${id}`),
+        api(`/api/contacts/${id}/activity`),
+      ]);
+
+      const wrap = document.getElementById("wrap");
+      wrap.innerHTML = `
+        <h1>${escapeHtml(contact.name) || "(no name)"}</h1>
+        <p class="subtitle">${escapeHtml(contact.email)} · <span class="status-pill ${contact.status}">${contact.status}</span></p>
+
+        <div class="card">
+          <h2>Segments</h2>
+          <div class="badge-row">
+            ${contact.segments.length ? contact.segments.map(s => `<span class="badge">${escapeHtml(s.name)}</span>`).join("") : `<span class="helptext">Not in any segment.</span>`}
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>Recent activity</h2>
+          <div id="activityWrap"></div>
+        </div>
+      `;
+
+      const activityWrap = document.getElementById("activityWrap");
+      if (!activity.length) {
+        activityWrap.innerHTML = `<div class="empty-state">No email activity recorded yet.</div>`;
+      } else {
+        activityWrap.innerHTML = `<div style="font-size:14px;line-height:2;">${activity.map(a => `<div>${activityLine(a)}</div>`).join("")}</div>`;
+      }
+    })();
+  </script>
+</body>
+</html>

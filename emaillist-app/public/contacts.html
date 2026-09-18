@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Contacts · Email List</title>
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <div class="container">
+    <h1>Contacts</h1>
+    <p class="subtitle">People on your list. Only people who've given you permission to email them.</p>
+
+    <div id="msg" class="msg" style="display:none;"></div>
+
+    <div class="card">
+      <h2>Add a contact</h2>
+      <form id="addForm">
+        <div class="field-row">
+          <div class="field">
+            <label for="name">Name</label>
+            <input type="text" id="name" placeholder="Jane Doe">
+          </div>
+          <div class="field">
+            <label for="email">Email</label>
+            <input type="email" id="email" placeholder="jane@example.com" required>
+          </div>
+        </div>
+        <button class="btn" type="submit">Add contact</button>
+      </form>
+    </div>
+
+    <div class="card">
+      <h2>Upload a CSV</h2>
+      <p class="helptext" style="margin-top:-6px;margin-bottom:14px;">
+        Needs a header row with <strong>Name</strong> and <strong>Email</strong>. An optional <strong>Segment</strong> column
+        will create segments automatically if they don't exist yet. Duplicates and invalid addresses are skipped.
+      </p>
+      <div class="field" style="max-width:280px;">
+        <label for="importSegment">Also add everyone imported to</label>
+        <select id="importSegment">
+          <option value="">(no segment)</option>
+        </select>
+      </div>
+      <div class="action-row">
+        <label class="btn btn-secondary" style="cursor:pointer;">
+          Choose CSV file
+          <input type="file" id="csvFile" accept=".csv" style="display:none;">
+        </label>
+        <button class="btn btn-secondary" id="exportBtn">Export list as CSV</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:10px;">
+        <h2 style="margin:0;">All contacts (<span id="countLabel">0</span>)</h2>
+      </div>
+
+      <div class="filter-bar">
+        <div class="field">
+          <label for="searchInput">Search</label>
+          <input type="text" id="searchInput" placeholder="Name or email">
+        </div>
+        <div class="field">
+          <label for="statusFilter">Status</label>
+          <select id="statusFilter">
+            <option value="">All</option>
+            <option value="active">Active</option>
+            <option value="unsubscribed">Unsubscribed</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="segmentFilter">Segment</label>
+          <select id="segmentFilter">
+            <option value="">All</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="bulk-bar" id="bulkBar">
+        <span class="count"><span id="selCount">0</span> selected</span>
+        <select id="bulkSegmentAdd" style="width:auto;">
+          <option value="">Add to segment…</option>
+        </select>
+        <select id="bulkSegmentRemove" style="width:auto;">
+          <option value="">Remove from segment…</option>
+        </select>
+        <button class="btn btn-danger btn-sm" id="bulkDeleteBtn">Delete selected</button>
+      </div>
+
+      <div id="tableWrap"><div class="empty-state">Loading…</div></div>
+    </div>
+  </div>
+
+  <script src="/js/app.js"></script>
+  <script>
+    renderNav("/contacts.html");
+    const msg = document.getElementById("msg");
+    let allSegments = [];
+    let currentContacts = [];
+    let selected = new Set();
+
+    async function loadSegmentsIntoSelects() {
+      const { segments } = await api("/api/segments");
+      allSegments = segments;
+      const opts = segments.map(s => `<option value="${s.id}">${escapeHtml(s.name)} (${s.contact_count})</option>`).join("");
+      document.getElementById("importSegment").innerHTML = `<option value="">(no segment)</option>${opts}`;
+      document.getElementById("segmentFilter").innerHTML = `<option value="">All</option>${opts}`;
+      document.getElementById("bulkSegmentAdd").innerHTML = `<option value="">Add to segment…</option>${opts}`;
+      document.getElementById("bulkSegmentRemove").innerHTML = `<option value="">Remove from segment…</option>${opts}`;
+    }
+
+    function currentQuery() {
+      const params = new URLSearchParams();
+      const search = document.getElementById("searchInput").value.trim();
+      const status = document.getElementById("statusFilter").value;
+      const segmentId = document.getElementById("segmentFilter").value;
+      if (search) params.set("search", search);
+      if (status) params.set("status", status);
+      if (segmentId) params.set("segmentId", segmentId);
+      return params.toString();
+    }
+
+    async function loadContacts() {
+      const { contacts } = await api(`/api/contacts?${currentQuery()}`);
+      currentContacts = contacts;
+      selected = new Set([...selected].filter(id => contacts.some(c => c.id === id)));
+      render();
+    }
+
+    function render() {
+      document.getElementById("countLabel").textContent = currentContacts.length;
+      const wrap = document.getElementById("tableWrap");
+      if (!currentContacts.length) {
+        wrap.innerHTML = `<div class="empty-state">No contacts match. Try adjusting search or filters.</div>`;
+      } else {
+        wrap.innerHTML = `
+          <table>
+            <thead><tr>
+              <th style="width:30px;"><input type="checkbox" id="selectAll"></th>
+              <th>Name</th><th>Email</th><th>Status</th><th>Segments</th><th></th>
+            </tr></thead>
+            <tbody>
+              ${currentContacts.map(c => `
+                <tr>
+                  <td><input type="checkbox" class="rowCheck" value="${c.id}" ${selected.has(c.id) ? "checked" : ""}></td>
+                  <td><a href="/contact.html?id=${c.id}">${escapeHtml(c.name) || "—"}</a></td>
+                  <td>${escapeHtml(c.email)}</td>
+                  <td><span class="status-pill ${c.status}">${c.status}</span></td>
+                  <td><div class="badge-row">${c.segments.map(s => `<span class="badge">${escapeHtml(s.name)}</span>`).join("") || "—"}</div></td>
+                  <td><button class="btn btn-danger btn-sm" data-id="${c.id}">Delete</button></td>
+                </tr>
+              `).join("")}
+            </tbody>
+          </table>
+        `;
+        wrap.querySelectorAll("button[data-id]").forEach(btn => {
+          btn.addEventListener("click", async () => {
+            if (!confirm("Remove this contact from your list?")) return;
+            await api(`/api/contacts/${btn.dataset.id}`, { method: "DELETE" });
+            await loadContacts();
+          });
+        });
+        wrap.querySelectorAll(".rowCheck").forEach(cb => {
+          cb.addEventListener("change", () => {
+            const id = Number(cb.value);
+            if (cb.checked) selected.add(id); else selected.delete(id);
+            updateBulkBar();
+          });
+        });
+        document.getElementById("selectAll").addEventListener("change", (e) => {
+          currentContacts.forEach(c => e.target.checked ? selected.add(c.id) : selected.delete(c.id));
+          render();
+        });
+      }
+      updateBulkBar();
+    }
+
+    function updateBulkBar() {
+      const bar = document.getElementById("bulkBar");
+      document.getElementById("selCount").textContent = selected.size;
+      bar.classList.toggle("visible", selected.size > 0);
+    }
+
+    document.getElementById("searchInput").addEventListener("input", debounce(loadContacts, 250));
+    document.getElementById("statusFilter").addEventListener("change", loadContacts);
+    document.getElementById("segmentFilter").addEventListener("change", loadContacts);
+
+    function debounce(fn, ms) {
+      let t;
+      return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); };
+    }
+
+    document.getElementById("addForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      hideMsg(msg);
+      const name = document.getElementById("name").value;
+      const email = document.getElementById("email").value;
+      try {
+        await api("/api/contacts", { method: "POST", body: JSON.stringify({ name, email }) });
+        document.getElementById("addForm").reset();
+        await loadContacts();
+        showMsg(msg, "Contact added.", "success");
+      } catch (err) {
+        showMsg(msg, err.message);
+      }
+    });
+
+    document.getElementById("csvFile").addEventListener("change", async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      hideMsg(msg);
+      const formData = new FormData();
+      formData.append("file", file);
+      const segmentId = document.getElementById("importSegment").value;
+      if (segmentId) formData.append("segmentId", segmentId);
+      try {
+        const result = await api("/api/contacts/upload", { method: "POST", body: formData });
+        await loadSegmentsIntoSelects();
+        await loadContacts();
+        let text = `Added ${result.added} contacts. Skipped ${result.skippedDuplicate} duplicates and ${result.skippedInvalid} invalid rows.`;
+        if (result.createdSegments && result.createdSegments.length) {
+          text += ` Created segment(s): ${result.createdSegments.join(", ")}.`;
+        }
+        showMsg(msg, text, "success");
+      } catch (err) {
+        showMsg(msg, err.message);
+      }
+      e.target.value = "";
+    });
+
+    document.getElementById("exportBtn").addEventListener("click", () => {
+      window.location.href = "/api/contacts/export";
+    });
+
+    document.getElementById("bulkDeleteBtn").addEventListener("click", () => {
+      const ids = [...selected];
+      if (!ids.length) return;
+      const { close } = openModal(`
+        <h2>Delete ${ids.length} contact(s)?</h2>
+        <p style="color:var(--gray-700);margin-top:10px;">This can't be undone.</p>
+        <div class="modal-actions">
+          <button class="btn btn-secondary" id="cancelBulkDelete">Cancel</button>
+          <button class="btn btn-danger" style="border-color:#b3261e;" id="confirmBulkDelete">Delete</button>
+        </div>
+      `);
+      document.getElementById("cancelBulkDelete").addEventListener("click", close);
+      document.getElementById("confirmBulkDelete").addEventListener("click", async () => {
+        await api("/api/contacts/bulk-delete", { method: "POST", body: JSON.stringify({ ids }) });
+        selected.clear();
+        close();
+        await loadContacts();
+        showMsg(msg, `Deleted ${ids.length} contact(s).`, "success");
+      });
+    });
+
+    document.getElementById("bulkSegmentAdd").addEventListener("change", async (e) => {
+      const segmentId = e.target.value;
+      if (!segmentId) return;
+      const ids = [...selected];
+      try {
+        await api(`/api/segments/${segmentId}/contacts`, { method: "POST", body: JSON.stringify({ contactIds: ids }) });
+        await loadSegmentsIntoSelects();
+        await loadContacts();
+        showMsg(msg, `Added ${ids.length} contact(s) to segment.`, "success");
+      } catch (err) {
+        showMsg(msg, err.message);
+      }
+      e.target.value = "";
+    });
+
+    document.getElementById("bulkSegmentRemove").addEventListener("change", async (e) => {
+      const segmentId = e.target.value;
+      if (!segmentId) return;
+      const ids = [...selected];
+      try {
+        await api(`/api/segments/${segmentId}/contacts`, { method: "DELETE", body: JSON.stringify({ contactIds: ids }) });
+        await loadSegmentsIntoSelects();
+        await loadContacts();
+        showMsg(msg, `Removed ${ids.length} contact(s) from segment.`, "success");
+      } catch (err) {
+        showMsg(msg, err.message);
+      }
+      e.target.value = "";
+    });
+
+    (async () => {
+      await loadSegmentsIntoSelects();
+      await loadContacts();
+    })();
+  </script>
+</body>
+</html>

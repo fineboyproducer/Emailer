@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Create Email · Email List</title>
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <div class="container">
+    <h1>Create Email</h1>
+    <p class="subtitle">Write your email once. Use <code>{{name}}</code> for a contact's name, or <code>{{email}}</code> for their address.</p>
+
+    <div id="msg" class="msg" style="display:none;"></div>
+
+    <div class="card">
+      <div class="field-row">
+        <div class="field">
+          <label for="subject">Subject</label>
+          <input type="text" id="subject" placeholder="What's this email about?">
+        </div>
+        <div class="field">
+          <label for="senderName">Sender name (optional)</label>
+          <input type="text" id="senderName" placeholder="Your name">
+        </div>
+      </div>
+
+      <div class="field">
+        <label>Email body</label>
+        <div class="editor-toolbar">
+          <button type="button" data-cmd="bold"><b>B</b></button>
+          <button type="button" data-cmd="italic"><i>I</i></button>
+          <button type="button" data-cmd="link">Link</button>
+          <button type="button" data-block="H2">Heading</button>
+          <button type="button" data-block="P">Paragraph</button>
+          <button type="button" data-insert="{{name}}">Insert {{name}}</button>
+        </div>
+        <div id="editor" class="editor" contenteditable="true">
+          <p>Hi {{name}},</p>
+          <p>Write your message here.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Recipients</h2>
+      <div class="radio-row">
+        <label><input type="radio" name="recipientMode" value="all" checked> All active contacts</label>
+        <label><input type="radio" name="recipientMode" value="segments"> Select segments</label>
+      </div>
+      <div id="segmentPicker" style="display:none;">
+        <div class="checkbox-list" id="segmentCheckList"><div class="empty-state">Loading segments…</div></div>
+      </div>
+      <p class="helptext" style="margin-top:12px;" id="estimateLabel">Estimated recipients: …</p>
+    </div>
+
+    <div class="card">
+      <div class="action-row">
+        <button class="btn btn-secondary" id="sendTestBtn">Send Test Email</button>
+        <button class="btn" id="reviewBtn">Review &amp; Send</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Preview</h2>
+      <p class="helptext" style="margin-top:-8px;margin-bottom:14px;">Shown as it would look for a contact named "Alex".</p>
+      <div class="preview-box" id="previewBox"></div>
+    </div>
+  </div>
+
+  <script src="/js/app.js"></script>
+  <script>
+    renderNav("/compose.html");
+    const msg = document.getElementById("msg");
+    const editor = document.getElementById("editor");
+    let allSegments = [];
+    let selectedSegmentIds = new Set();
+
+    document.querySelectorAll(".editor-toolbar button[data-cmd]").forEach(btn => {
+      btn.addEventListener("click", () => {
+        editor.focus();
+        const cmd = btn.dataset.cmd;
+        if (cmd === "link") {
+          const url = prompt("Link URL (include https://)");
+          if (url) document.execCommand("createLink", false, url);
+        } else {
+          document.execCommand(cmd, false, null);
+        }
+        updatePreview();
+      });
+    });
+    document.querySelectorAll(".editor-toolbar button[data-block]").forEach(btn => {
+      btn.addEventListener("click", () => {
+        editor.focus();
+        document.execCommand("formatBlock", false, btn.dataset.block);
+        updatePreview();
+      });
+    });
+    document.querySelector('[data-insert]').addEventListener("click", () => {
+      editor.focus();
+      document.execCommand("insertText", false, "{{name}}");
+      updatePreview();
+    });
+    editor.addEventListener("input", updatePreview);
+
+    function updatePreview() {
+      document.getElementById("previewBox").innerHTML = editor.innerHTML
+        .split("{{name}}").join("Alex")
+        .split("{{email}}").join("alex@example.com");
+    }
+    updatePreview();
+
+    async function loadSegments() {
+      const { segments } = await api("/api/segments");
+      allSegments = segments;
+      const wrap = document.getElementById("segmentCheckList");
+      if (!segments.length) {
+        wrap.innerHTML = `<div class="empty-state">No segments yet. <a href="/segments.html">Create one</a>, or send to all active contacts.</div>`;
+        return;
+      }
+      wrap.innerHTML = segments.map(s => `
+        <label>
+          <input type="checkbox" class="segCheck" value="${s.id}">
+          ${escapeHtml(s.name)}
+          <span class="seg-count">${s.contact_count}</span>
+        </label>
+      `).join("");
+      wrap.querySelectorAll(".segCheck").forEach(cb => {
+        cb.addEventListener("change", () => {
+          if (cb.checked) selectedSegmentIds.add(cb.value); else selectedSegmentIds.delete(cb.value);
+          updateEstimate();
+        });
+      });
+    }
+
+    document.querySelectorAll('input[name="recipientMode"]').forEach(radio => {
+      radio.addEventListener("change", () => {
+        const mode = getMode();
+        document.getElementById("segmentPicker").style.display = mode === "segments" ? "block" : "none";
+        updateEstimate();
+      });
+    });
+
+    function getMode() {
+      return document.querySelector('input[name="recipientMode"]:checked').value;
+    }
+
+    async function updateEstimate() {
+      const mode = getMode();
+      const label = document.getElementById("estimateLabel");
+      if (mode === "segments" && !selectedSegmentIds.size) {
+        label.textContent = "Select at least one segment.";
+        return;
+      }
+      const params = new URLSearchParams({ mode });
+      if (mode === "segments") params.set("segmentIds", [...selectedSegmentIds].join(","));
+      try {
+        const { count, excludedUnsubscribed } = await api(`/api/campaigns/recipients-count?${params}`);
+        label.textContent = `Estimated recipients: ${count}` + (excludedUnsubscribed ? ` (${excludedUnsubscribed} unsubscribed excluded)` : "");
+      } catch (err) {
+        label.textContent = "Could not estimate recipients.";
+      }
+    }
+
+    document.getElementById("sendTestBtn").addEventListener("click", async () => {
+      hideMsg(msg);
+      const testEmail = prompt("Send a test email to:");
+      if (!testEmail) return;
+      const subject = document.getElementById("subject").value;
+      const senderName = document.getElementById("senderName").value;
+      const bodyHtml = editor.innerHTML;
+      if (!subject) return showMsg(msg, "Add a subject first.");
+      const btn = document.getElementById("sendTestBtn");
+      btn.disabled = true;
+      try {
+        const result = await api("/api/campaigns/send-test", {
+          method: "POST",
+          body: JSON.stringify({ subject, bodyHtml, senderName, testEmail }),
+        });
+        showMsg(msg, `Email accepted by Resend. Message ID: ${result.id}`, "success");
+      } catch (err) {
+        showMsg(msg, err.message);
+      } finally {
+        btn.disabled = false;
+      }
+    });
+
+    document.getElementById("reviewBtn").addEventListener("click", async () => {
+      hideMsg(msg);
+      const subject = document.getElementById("subject").value;
+      if (!subject) return showMsg(msg, "Add a subject first.");
+      const mode = getMode();
+      if (mode === "segments" && !selectedSegmentIds.size) {
+        return showMsg(msg, "Select at least one segment, or choose \"All active contacts\".");
+      }
+
+      const params = new URLSearchParams({ mode });
+      if (mode === "segments") params.set("segmentIds", [...selectedSegmentIds].join(","));
+      const { count, excludedUnsubscribed } = await api(`/api/campaigns/recipients-count?${params}`);
+
+      const segmentNames = mode === "segments"
+        ? allSegments.filter(s => selectedSegmentIds.has(String(s.id))).map(s => s.name)
+        : [];
+
+      const { close } = openModal(`
+        <h2>Review campaign</h2>
+        <div class="modal-row"><span class="label">Subject</span><span>${escapeHtml(subject)}</span></div>
+        <div class="modal-row"><span class="label">Recipients</span><span>${count}</span></div>
+        <div class="modal-row"><span class="label">Sending to</span><span>${mode === "all" ? "All active contacts" : segmentNames.join(", ")}</span></div>
+        <div class="modal-row"><span class="label">Excluded</span><span>${excludedUnsubscribed} unsubscribed</span></div>
+        <div class="modal-actions">
+          <button class="btn btn-secondary" id="cancelSend">Cancel</button>
+          <button class="btn" id="confirmSend">Send campaign</button>
+        </div>
+      `);
+      document.getElementById("cancelSend").addEventListener("click", close);
+      document.getElementById("confirmSend").addEventListener("click", async () => {
+        const confirmBtn = document.getElementById("confirmSend");
+        confirmBtn.disabled = true;
+        confirmBtn.textContent = "Sending…";
+        try {
+          const senderName = document.getElementById("senderName").value;
+          const bodyHtml = editor.innerHTML;
+          const body = { subject, bodyHtml, senderName, mode };
+          if (mode === "segments") body.segmentIds = [...selectedSegmentIds].map(Number);
+          const result = await api("/api/campaigns/send", { method: "POST", body: JSON.stringify(body) });
+          close();
+          showMsg(msg, `Sent to ${result.sent} contact(s).${result.failed ? ` ${result.failed} failed.` : ""}`, "success");
+        } catch (err) {
+          close();
+          showMsg(msg, err.message);
+        }
+      });
+    });
+
+    // If arriving from "Duplicate Campaign", prefill the form.
+    async function maybeLoadDuplicate() {
+      const params = new URLSearchParams(location.search);
+      const dupId = params.get("duplicate");
+      if (!dupId) return;
+      try {
+        const { campaign } = await api(`/api/campaigns/${dupId}`);
+        document.getElementById("subject").value = campaign.subject;
+        document.getElementById("senderName").value = campaign.sender_name || "";
+        editor.innerHTML = campaign.body_html;
+        updatePreview();
+        if (campaign.recipient_mode === "segments" && campaign.segments.length) {
+          document.querySelector('input[name="recipientMode"][value="segments"]').checked = true;
+          document.getElementById("segmentPicker").style.display = "block";
+          const idsById = new Set(campaign.segments.map(s => String(s.id)));
+          setTimeout(() => {
+            document.querySelectorAll(".segCheck").forEach(cb => {
+              if (idsById.has(cb.value)) {
+                cb.checked = true;
+                selectedSegmentIds.add(cb.value);
+              }
+            });
+            updateEstimate();
+          }, 0);
+        }
+        showMsg(msg, "Loaded from a previous campaign — edit and send whenever you're ready.", "success");
+      } catch (err) {
+        console.error(err);
+      }
+    }
+
+    (async () => {
+      await loadSegments();
+      await maybeLoadDuplicate();
+      updateEstimate();
+    })();
+  </script>
+</body>
+</html>

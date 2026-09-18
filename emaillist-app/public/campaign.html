@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Campaign Report · Email List</title>
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <div class="container">
+    <a href="/campaigns.html" class="link-btn" style="display:inline-block;margin-bottom:16px;">&larr; All campaigns</a>
+    <div id="wrap"><div class="empty-state">Loading…</div></div>
+  </div>
+
+  <script src="/js/app.js"></script>
+  <script>
+    renderNav("/campaigns.html");
+    const params = new URLSearchParams(location.search);
+    const id = params.get("id");
+
+    function statusLabel(c) {
+      if (c.status === "sent") return `<span class="status-pill active">Sent</span>`;
+      if (c.status === "partial") return `<span class="status-pill" style="border-color:#b3261e;color:#b3261e;">Partial</span>`;
+      return `<span class="status-pill" style="border-color:#b3261e;color:#b3261e;">Failed</span>`;
+    }
+
+    function statRow(label, value) {
+      return `<div class="modal-row"><span class="label">${label}</span><span>${value}</span></div>`;
+    }
+
+    (async () => {
+      if (!id) return;
+      const [{ campaign, counts, rates, topLinks }, { campaign: fullCampaign }] = await Promise.all([
+        api(`/api/campaigns/${id}/report`),
+        api(`/api/campaigns/${id}`),
+      ]);
+
+      const wrap = document.getElementById("wrap");
+      wrap.innerHTML = `
+        <h1>${escapeHtml(campaign.subject)}</h1>
+        <p class="subtitle">
+          Sent ${new Date(campaign.sent_at).toLocaleString()} ${statusLabel(campaign)}
+          · ${campaign.segments.length ? escapeHtml(campaign.segments.map(s => s.name).join(", ")) : "All active contacts"}
+        </p>
+
+        <div class="stat-grid" style="grid-template-columns:repeat(4,1fr);">
+          <div class="stat"><div class="num">${formatNumber(counts.sent)}</div><div class="label">Sent</div></div>
+          <div class="stat"><div class="num">${formatRate(rates.deliveryRate)}</div><div class="label">Delivery rate</div></div>
+          <div class="stat"><div class="num">${formatRate(rates.openRate)}</div><div class="label">Open rate (unique)</div></div>
+          <div class="stat"><div class="num">${formatRate(rates.clickRate)}</div><div class="label">Click rate (unique)</div></div>
+        </div>
+
+        <div class="card">
+          <h2>Delivery</h2>
+          ${statRow("Recipients", formatNumber(counts.recipients))}
+          ${statRow("Sent", formatNumber(counts.sent))}
+          ${statRow("Delivered", formatNumber(counts.delivered))}
+          ${statRow("Delivery rate", formatRate(rates.deliveryRate))}
+          ${statRow("Delayed", formatNumber(counts.delayed))}
+          ${statRow("Bounced", formatNumber(counts.bounced))}
+          ${statRow("Bounce rate", formatRate(rates.bounceRate))}
+          ${statRow("Failed to send", formatNumber(counts.failed))}
+        </div>
+
+        <div class="card">
+          <h2>Engagement</h2>
+          <p class="helptext" style="margin-top:-8px;margin-bottom:10px;">
+            Open tracking is approximate — some email clients block or preload tracking pixels, so opens can be under- or over-counted. Clicks and deliveries are more reliable signals.
+          </p>
+          ${statRow("Opens (unique)", formatNumber(counts.opens_unique))}
+          ${statRow("Opens (total)", formatNumber(counts.opens_total))}
+          ${statRow("Open rate", formatRate(rates.openRate))}
+          ${statRow("Clicks (unique)", formatNumber(counts.clicks_unique))}
+          ${statRow("Clicks (total)", formatNumber(counts.clicks_total))}
+          ${statRow("Click rate", formatRate(rates.clickRate))}
+          ${statRow("Click-to-open rate", formatRate(rates.clickToOpenRate))}
+        </div>
+
+        <div class="card">
+          <h2>List health</h2>
+          ${statRow("Unsubscribed", formatNumber(counts.unsubscribed))}
+          ${statRow("Unsubscribe rate", formatRate(rates.unsubscribeRate))}
+          ${statRow("Spam complaints", formatNumber(counts.complained))}
+          ${statRow("Complaint rate", formatRate(rates.complaintRate))}
+        </div>
+
+        <div class="card">
+          <h2>Top clicked links</h2>
+          <div id="topLinksWrap"></div>
+        </div>
+
+        <div class="card">
+          <h2>Email body</h2>
+          <div class="body-preview">${fullCampaign.body_html}</div>
+        </div>
+
+        <div class="action-row">
+          <button class="btn" id="duplicateBtn">Duplicate Campaign</button>
+        </div>
+      `;
+
+      const linksWrap = document.getElementById("topLinksWrap");
+      if (!topLinks.length) {
+        linksWrap.innerHTML = `<div class="empty-state">No link clicks recorded yet.</div>`;
+      } else {
+        linksWrap.innerHTML = `
+          <table>
+            <thead><tr><th>URL</th><th>Total clicks</th><th>Unique clicks</th></tr></thead>
+            <tbody>
+              ${topLinks.map(l => `
+                <tr>
+                  <td style="word-break:break-all;"><a href="${l.link_url}" target="_blank" rel="noopener">${escapeHtml(l.link_url)}</a></td>
+                  <td>${formatNumber(l.total_clicks)}</td>
+                  <td>${formatNumber(l.unique_clicks)}</td>
+                </tr>
+              `).join("")}
+            </tbody>
+          </table>
+        `;
+      }
+
+      document.getElementById("duplicateBtn").addEventListener("click", () => {
+        window.location.href = `/compose.html?duplicate=${campaign.id}`;
+      });
+    })();
+  </script>
+</body>
+</html>
