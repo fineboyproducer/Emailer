@@ -24,7 +24,7 @@ function verifySignature(rawBody, headers, secret) {
   const secretBytes = Buffer.from(secret.replace(/^whsec_/, ""), "base64");
   const signedContent = `${id}.${timestamp}.${rawBody}`;
   const expected = crypto.createHmac("sha256", secretBytes).update(signedContent).digest("base64");
-  const expectedBuf = Buffer.from(expected);
+  const expectedBuf = Buffer.from(expected, "base64");
 
   // svix-signature can carry multiple space-separated "v1,<sig>" values
   // (e.g. during secret rotation) - any one matching is valid.
