@@ -1,0 +1,38 @@
+name: Live reminders
+
+# Wakes the Emailer (free hosting sleeps) and asks it to send any live reminders that are due.
+# Needs two repository secrets: Settings > Secrets and variables > Actions
+#   EMAILER_URL  e.g. https://your-emailer.onrender.com   (no trailing slash)
+#   CRON_SECRET  the same value as the CRON_SECRET set on the Emailer host
+#
+# Note: GitHub can start scheduled runs a few minutes late, and pauses schedules on a repo
+# with no activity for 60 days (re-enable under the Actions tab). The Emailer's reminder
+# windows are sized to tolerate delays of up to 30 minutes.
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: live-reminders
+  cancel-in-progress: false
+
+jobs:
+  tick:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Trigger a reminder run
+        env:
+          EMAILER_URL: ${{ secrets.EMAILER_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          if [ -z "$EMAILER_URL" ] || [ -z "$CRON_SECRET" ]; then
+            echo "Add the EMAILER_URL and CRON_SECRET repository secrets first." >&2
+            exit 1
+          fi
+          curl --fail-with-body --silent --show-error \
+            --retry 3 --retry-delay 20 --retry-all-errors --max-time 150 \
+            -X POST "${EMAILER_URL%/}/api/public/live/cron" \
+            -H "x-cron-secret: $CRON_SECRET"

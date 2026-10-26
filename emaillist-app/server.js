@@ -10,6 +10,9 @@ const campaignsRoutes = require("./src/routes/campaigns");
 const segmentsRoutes = require("./src/routes/segments");
 const settingsRoutes = require("./src/routes/settings");
 const webhooksRoutes = require("./src/routes/webhooks");
+const liveRoutes = require("./src/routes/live");
+const { ensureLiveSchema } = require("./src/live/migrate");
+const { runReminders } = require("./src/live/reminders");
 const { requireLogin } = require("./src/middleware/auth");
 const { configStatus } = require("./src/emailProvider");
 
@@ -43,7 +46,12 @@ if (!process.env.RESEND_WEBHOOK_SECRET) {
 }
 pool.query("SELECT 1")
   .then(() => console.log("Database: connected to Supabase Postgres."))
-  .catch((err) => console.error("WARNING: could not connect to the database at startup:", err.message));
+  .then(() => ensureLiveSchema())
+  .catch((err) => console.error("WARNING: could not connect to / prepare the database at startup:", err.message));
+
+if (!process.env.CRON_SECRET) {
+  console.warn("WARNING: CRON_SECRET is not set - the live reminder scheduler endpoint (/api/public/live/cron) will refuse every call until it's added.");
+}
 
 // The Resend webhook needs the RAW request body to verify its signature -
 // mounted here, before the global express.json() below, with its own
@@ -54,6 +62,11 @@ app.use("/api/webhooks", express.raw({ type: "application/json" }), webhooksRout
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// Public live-registration endpoints (the live page's sign-up form, the reminder scheduler
+// and the live-reminder unsubscribe). No admin login needed - see src/routes/live.js.
+app.use("/api/public/live", liveRoutes);
+
 app.use(
   session({
     secret: process.env.SESSION_SECRET || "insecure-dev-secret-change-me",
@@ -138,3 +151,11 @@ app.use(express.static(path.join(__dirname, "public")));
 app.listen(PORT, () => {
   console.log(`Email list app running at http://localhost:${PORT}`);
 });
+
+// While the server is awake it also checks for due live reminders by itself every 5 minutes.
+// On a free host that sleeps this is only a bonus: the external trigger in
+// .github/workflows/live-reminders.yml is what wakes the server and guarantees the schedule.
+// Running both is safe - every reminder is claimed in the database before it is sent.
+setInterval(() => {
+  runReminders().catch((err) => console.error("[live] scheduled run failed:", err.message));
+}, 5 * 60 * 1000);

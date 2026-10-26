@@ -286,3 +286,57 @@ against Supabase:
   — so analytics can't be tested against a purely local dev server unless
   you tunnel it (e.g. with ngrok) and register that URL as the webhook
   endpoint temporarily.
+
+---
+
+## Live masterclass: registration and automatic reminders
+
+The live page (`fineboyproducer.com.ng/live/`) hands every registration to this app. The app
+adds the person to your contacts (segment **Live Registrants**), emails a confirmation within
+seconds, and then sends reminders before the live, all automatically.
+
+| Email | When |
+|---|---|
+| "You're in" confirmation | Within seconds of registering |
+| "Tomorrow at 8:00 PM WAT" | Thursday 8:00 PM WAT (any time up to before midnight) |
+| "Tonight at 8:00 PM WAT" | Friday 7:00 PM WAT (up to 7:30) |
+| "We're live now" | Friday 8:00 PM WAT (up to 8:30) |
+
+- The live is every Friday at 8:00 PM WAT. Someone who registers on or after the end of a live is registered for the next Friday. The **server** decides which Friday, not the visitor's device clock.
+- Nobody gets the same email twice, even if two runs overlap or something crashes and retries (`live_reminder_log` has one row per person per email). A failed send is retried on the next run, up to 3 times.
+- Someone who registers within 15 minutes before a reminder skips it (they just heard from us).
+- Every email has an unsubscribe link and the one-click unsubscribe button mail apps show. It stops live reminders only. It does not change the person's status for your campaigns.
+- Emails link to the live page, where "Join on Google Meet" appears once you add that week's link to `MEET_URLS` in `live/index.html`. You never have to put the Meet link in the Emailer.
+
+### Setup (once)
+
+1. **Deploy this version** to Render. The two new tables (`live_registrations`, `live_reminder_log`) are created automatically at startup (`sql/02_live_reminders.sql`; running it by hand is optional).
+2. **Add `CRON_SECRET`** in Render, Environment: a long random string, e.g. `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`. Redeploy/restart. `APP_URL`, `RESEND_API_KEY` and `FROM_EMAIL` must already be set (they are for campaigns).
+3. **Turn on the scheduler.** Render's free tier sleeps, so something outside it has to call it every 5 minutes. This repo includes `.github/workflows/live-reminders.yml` for that. In the GitHub repo: Settings, Secrets and variables, Actions, add **`EMAILER_URL`** (your Render address, no trailing slash) and **`CRON_SECRET`** (the same value as step 2). Then Actions tab, "Live reminders", Run workflow, to check it goes green.
+   - GitHub can start scheduled runs a few minutes late and pauses them if the repo is untouched for 60 days. The reminder windows above tolerate up to 30 minutes' delay. If you want something stricter, a free cron service (e.g. cron-job.org) calling `POST /api/public/live/cron` with header `x-cron-secret: <CRON_SECRET>` every 5 minutes works the same way.
+4. **Connect the page.** In `live/index.html` (site repo), set `EMAILER_URL` in `CONFIG` to your Render address. Push the site. Until this is set, the page works exactly as before and sends nothing to the Emailer.
+
+### Test before the live
+
+```bash
+# Rehearsal: lists what a real run would send right now, sends nothing
+curl -X POST "https://YOUR-EMAILER.onrender.com/api/public/live/cron?dry_run=1" -H "x-cron-secret: YOUR_CRON_SECRET"
+```
+Register on the live page with your own email: the confirmation should arrive within a minute (the first request can be slow if Render was asleep), and the person should appear under **Contacts**, segment **Live Registrants**. Click the unsubscribe link in it: it shows a confirm button, and nothing changes until you press it.
+
+### Watching it work
+
+- Who has been sent what: tables `live_reminder_log` (one row per person per email, with any error) and `live_registrations` in Supabase.
+- Emails also appear in your Resend dashboard.
+- `POST /api/public/live/cron` replies with JSON: how many registrations, how many due, sent, failed, and the first errors.
+
+### Settings (all optional, in Render's environment)
+
+`LIVE_EMAIL_KINDS` (default `confirm,24h,1h,live`; drop any you don't want, e.g. `confirm,1h`), `LIVE_EVENT_NAME`, `LIVE_WEEKDAY`, `LIVE_HOUR_WAT`, `LIVE_DURATION_MIN`, `LIVE_PAGE_URL`, `LIVE_SEGMENT_NAME`, `LIVE_FROM_NAME`, `LIVE_ALLOWED_ORIGINS`. See `.env.example`.
+
+### Limits to know about
+
+- **Resend's free plan allows 100 emails a day.** On the Friday each person gets 2 emails (1h and live), so the free plan covers about 50 registrants; trim with `LIVE_EMAIL_KINDS` or upgrade for the day.
+- If the page's hand-off to the Emailer fails (visitor closes the tab while Render is waking), that person is not scheduled. If this app's database is the **same Supabase project** as the live page's `event_registrations` table, it notices and imports them automatically on the next run (`LIVE_SYNC_FROM_SITE_TABLE`). If the projects are different, this safety net does nothing, so check the Resend/`live_registrations` count against the page's Supabase table after the first live.
+- WhatsApp is not part of this: the Emailer sends email only.
+- The older `Auto-Reminder` Supabase functions were built for the one-off 25 September YouTube live. They are not used by this setup. If their `live-reminders` schedule is still active in Supabase, remove it (`select cron.unschedule('live-reminders');`) so nothing can email people twice.
