@@ -12,7 +12,6 @@ const settingsRoutes = require("./src/routes/settings");
 const webhooksRoutes = require("./src/routes/webhooks");
 const liveRoutes = require("./src/routes/live");
 const { ensureLiveSchema } = require("./src/live/migrate");
-const { runReminders } = require("./src/live/reminders");
 const { requireLogin } = require("./src/middleware/auth");
 const { configStatus } = require("./src/emailProvider");
 
@@ -151,11 +150,3 @@ app.use(express.static(path.join(__dirname, "public")));
 app.listen(PORT, () => {
   console.log(`Email list app running at http://localhost:${PORT}`);
 });
-
-// While the server is awake it also checks for due live reminders by itself every 5 minutes.
-// On a free host that sleeps this is only a bonus: the external trigger in
-// .github/workflows/live-reminders.yml is what wakes the server and guarantees the schedule.
-// Running both is safe - every reminder is claimed in the database before it is sent.
-setInterval(() => {
-  runReminders().catch((err) => console.error("[live] scheduled run failed:", err.message));
-}, 5 * 60 * 1000);

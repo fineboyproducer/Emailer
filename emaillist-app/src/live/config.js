@@ -31,7 +31,6 @@ function liveConfig(env = process.env) {
     fromName: env.LIVE_FROM_NAME || env.FROM_NAME || "",
     cronSecret: env.CRON_SECRET || "",
     appUrl: (env.APP_URL || "").replace(/\/$/, ""),
-    syncFromSiteTable: String(env.LIVE_SYNC_FROM_SITE_TABLE ?? "true").toLowerCase() !== "false",
   };
 }
 

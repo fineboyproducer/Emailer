@@ -5,7 +5,6 @@ const { sendEmail, configStatus } = require("../emailProvider");
 const { liveConfig } = require("./config");
 const { sessionForDate, MIN } = require("./session");
 const { renderLiveEmail } = require("./templates");
-const { cleanRegistration, registerLive } = require("./register");
 
 // When each email may go out. `minutesBefore: null` = as soon as someone registers.
 // `lateMin` = how long after its scheduled moment a reminder may still go out, which covers
@@ -119,31 +118,6 @@ async function sendJob(cfg, job) {
   });
 }
 
-// Only if this Emailer happens to share a database with the live page's own table: pull in
-// anyone the page saved there but whose hand-off to the Emailer never arrived (visitor closed
-// the tab, Emailer was waking up). If that table isn't here, this does nothing.
-async function syncFromSiteTable(cfg, nowMs) {
-  const exists = (await pool.query("SELECT to_regclass('public.event_registrations') AS t")).rows[0].t;
-  if (!exists) return { available: false, imported: 0 };
-
-  const { rows } = await pool.query(
-    `SELECT first_name, email, whatsapp, artist_name, registered_at
-       FROM public.event_registrations
-      WHERE event_name = $1 AND registered_at > now() - interval '8 days'
-      ORDER BY registered_at`,
-    [cfg.eventName]
-  );
-
-  let imported = 0;
-  for (const row of rows) {
-    const clean = cleanRegistration(row);
-    if (!clean.ok) continue;
-    const result = await registerLive(clean.value, { source: "sync", registeredAtMs: new Date(row.registered_at).getTime() });
-    if (result.created) imported++;
-  }
-  return { available: true, imported };
-}
-
 async function loadRegistrations(nowMs) {
   const { rows } = await pool.query(
     `SELECT r.id, r.contact_id, r.first_name, r.email, r.registered_at, r.unsubscribed_at,
@@ -170,7 +144,7 @@ async function loadLogs(regIds) {
 
 let running = false;
 
-// One pass: import anything missing, work out what is due, send it, record it.
+// One pass: work out what is due, send it, record it.
 async function runReminders({ dryRun = false, now = Date.now() } = {}) {
   if (running) return { ok: true, skipped: "a run is already in progress" };
   running = true;
@@ -184,17 +158,11 @@ async function runReminders({ dryRun = false, now = Date.now() } = {}) {
       return { ok: false, error: "APP_URL is not set, so unsubscribe links can't be built." };
     }
 
-    let sync = null;
-    if (cfg.syncFromSiteTable && !dryRun) {
-      try { sync = await syncFromSiteTable(cfg, now); }
-      catch (err) { console.error("[live] sync from site table failed:", err.message); sync = { error: err.message }; }
-    }
-
     const regs = await loadRegistrations(now);
     const logs = await loadLogs(regs.map((r) => r.id));
     const jobs = plan(now, regs, logs, cfg).slice(0, MAX_JOBS_PER_RUN);
 
-    const summary = { ok: true, dryRun, registrations: regs.length, due: jobs.length, sent: 0, failed: 0, skipped: 0, errors: [], sync };
+    const summary = { ok: true, dryRun, registrations: regs.length, due: jobs.length, sent: 0, failed: 0, skipped: 0, errors: [] };
     if (dryRun) return { ...summary, would_send: jobs.map((j) => `${j.step.kind} -> ${j.reg.email}`) };
 
     for (const job of jobs) {

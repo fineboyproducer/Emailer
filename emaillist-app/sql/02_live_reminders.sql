@@ -14,7 +14,7 @@ create table if not exists live_registrations (
   event_date    date not null,                       -- the Friday (WAT) this registration is for
   registered_at timestamptz not null default now(),
   unsubscribed_at timestamptz,                       -- opted out of live reminders (does not touch campaigns)
-  source        text not null default 'page'         -- 'page' (live page) | 'sync' (copied from the site's table)
+  source        text not null default 'page'         -- where the registration came from
 );
 create unique index if not exists idx_live_reg_email_date on live_registrations (lower(email), event_date);
 create index if not exists idx_live_reg_event_date on live_registrations (event_date);
