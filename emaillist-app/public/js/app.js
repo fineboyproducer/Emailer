@@ -14,11 +14,23 @@ function renderNav(active) {
       <div class="brand">Email List</div>
       <div class="navlinks">
         ${links.map(l => `<a href="${l.href}" class="${l.href === active ? "active" : ""}">${l.label}</a>`).join("")}
+        <button class="icon-btn" id="themeBtn" title="Switch light/dark theme" aria-label="Switch theme"></button>
         <button class="logout-btn" id="logoutBtn">Log out</button>
       </div>
     </div>
   `;
   document.body.prepend(nav);
+  const themeBtn = document.getElementById("themeBtn");
+  const paintThemeBtn = () => {
+    themeBtn.textContent = document.documentElement.dataset.theme === "dark" ? "☀ Light" : "☾ Dark";
+  };
+  paintThemeBtn();
+  themeBtn.addEventListener("click", () => {
+    const next = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
+    document.documentElement.dataset.theme = next;
+    try { localStorage.setItem("theme", next); } catch (e) { /* storage blocked - theme just won't persist */ }
+    paintThemeBtn();
+  });
   document.getElementById("logoutBtn").addEventListener("click", async () => {
     await fetch("/api/auth/logout", { method: "POST" });
     window.location.href = "/login.html";

@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Campaigns · Email List</title>
+<script>try{document.documentElement.dataset.theme=localStorage.getItem("theme")||(matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light")}catch(e){}</script>
 <link rel="stylesheet" href="/css/style.css">
 </head>
 <body>
@@ -22,8 +23,8 @@
 
     function statusLabel(c) {
       if (c.status === "sent") return `<span class="status-pill active">Sent</span>`;
-      if (c.status === "partial") return `<span class="status-pill" style="border-color:#b3261e;color:#b3261e;">Partial (${c.failed_count} failed)</span>`;
-      return `<span class="status-pill" style="border-color:#b3261e;color:#b3261e;">Failed</span>`;
+      if (c.status === "partial") return `<span class="status-pill" style="border-color:var(--danger);color:var(--danger);">Partial (${c.failed_count} failed)</span>`;
+      return `<span class="status-pill" style="border-color:var(--danger);color:var(--danger);">Failed</span>`;
     }
 
     (async () => {

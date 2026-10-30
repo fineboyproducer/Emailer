@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Settings · Email List</title>
+<script>try{document.documentElement.dataset.theme=localStorage.getItem("theme")||(matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light")}catch(e){}</script>
 <link rel="stylesheet" href="/css/style.css">
 </head>
 <body>
@@ -48,7 +49,7 @@
     const testMsg = document.getElementById("testMsg");
 
     function pill(text, ok) {
-      return `<span class="status-pill ${ok ? "active" : ""}" style="${ok ? "" : "border-color:#b3261e;color:#b3261e;"}">${text}</span>`;
+      return `<span class="status-pill ${ok ? "active" : ""}" style="${ok ? "" : "border-color:var(--danger);color:var(--danger);"}">${text}</span>`;
     }
 
     async function loadStatus() {

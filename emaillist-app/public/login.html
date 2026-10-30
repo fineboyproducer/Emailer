@@ -4,20 +4,24 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Log in · Email List</title>
+<script>try{document.documentElement.dataset.theme=localStorage.getItem("theme")||(matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light")}catch(e){}</script>
 <link rel="stylesheet" href="/css/style.css">
 </head>
 <body>
-  <div style="max-width:360px;margin:120px auto;padding:0 20px;">
-    <h1 style="margin-bottom:24px;">Email List</h1>
-    <div class="card">
-      <div id="msg" class="msg error" style="display:none;"></div>
-      <form id="loginForm">
-        <div class="field">
-          <label for="password">Password</label>
-          <input type="password" id="password" name="password" required autofocus>
-        </div>
-        <button type="submit" class="btn" style="width:100%;justify-content:center;">Log in</button>
-      </form>
+  <div class="auth-wrap">
+    <div class="auth-card">
+      <div class="brand">Email List</div>
+      <p class="subtitle">Sign in to your dashboard.</p>
+      <div class="card">
+        <div id="msg" class="msg error" style="display:none;"></div>
+        <form id="loginForm">
+          <div class="field">
+            <label for="password">Password</label>
+            <input type="password" id="password" name="password" required autofocus>
+          </div>
+          <button type="submit" class="btn" style="width:100%;">Log in</button>
+        </form>
+      </div>
     </div>
   </div>
   <script src="/js/app.js"></script>

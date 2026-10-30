@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Contacts · Email List</title>
+<script>try{document.documentElement.dataset.theme=localStorage.getItem("theme")||(matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light")}catch(e){}</script>
 <link rel="stylesheet" href="/css/style.css">
 </head>
 <body>
@@ -241,7 +242,7 @@
         <p style="color:var(--gray-700);margin-top:10px;">This can't be undone.</p>
         <div class="modal-actions">
           <button class="btn btn-secondary" id="cancelBulkDelete">Cancel</button>
-          <button class="btn btn-danger" style="border-color:#b3261e;" id="confirmBulkDelete">Delete</button>
+          <button class="btn btn-danger" style="border-color:var(--danger);" id="confirmBulkDelete">Delete</button>
         </div>
       `);
       document.getElementById("cancelBulkDelete").addEventListener("click", close);

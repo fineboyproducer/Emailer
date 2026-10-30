@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Campaign Report · Email List</title>
+<script>try{document.documentElement.dataset.theme=localStorage.getItem("theme")||(matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light")}catch(e){}</script>
 <link rel="stylesheet" href="/css/style.css">
 </head>
 <body>
@@ -20,8 +21,8 @@
 
     function statusLabel(c) {
       if (c.status === "sent") return `<span class="status-pill active">Sent</span>`;
-      if (c.status === "partial") return `<span class="status-pill" style="border-color:#b3261e;color:#b3261e;">Partial</span>`;
-      return `<span class="status-pill" style="border-color:#b3261e;color:#b3261e;">Failed</span>`;
+      if (c.status === "partial") return `<span class="status-pill" style="border-color:var(--danger);color:var(--danger);">Partial</span>`;
+      return `<span class="status-pill" style="border-color:var(--danger);color:var(--danger);">Failed</span>`;
     }
 
     function statRow(label, value) {
@@ -43,11 +44,26 @@
           · ${campaign.segments.length ? escapeHtml(campaign.segments.map(s => s.name).join(", ")) : "All active contacts"}
         </p>
 
-        <div class="stat-grid" style="grid-template-columns:repeat(4,1fr);">
+        <div class="stat-grid">
           <div class="stat"><div class="num">${formatNumber(counts.sent)}</div><div class="label">Sent</div></div>
           <div class="stat"><div class="num">${formatRate(rates.deliveryRate)}</div><div class="label">Delivery rate</div></div>
           <div class="stat"><div class="num">${formatRate(rates.openRate)}</div><div class="label">Open rate (unique)</div></div>
           <div class="stat"><div class="num">${formatRate(rates.clickRate)}</div><div class="label">Click rate (unique)</div></div>
+        </div>
+
+        <div class="card">
+          <h2>Delivery funnel</h2>
+          ${(() => {
+            const base = counts.sent || 0;
+            const row = (name, n) => `
+              <div class="funnel-row">
+                <span class="name">${name}</span>
+                <div class="funnel-bar"><span style="width:${base ? Math.min(100, (n / base) * 100) : 0}%"></span></div>
+                <span class="val">${formatNumber(n)}</span>
+              </div>`;
+            return row("Sent", counts.sent) + row("Delivered", counts.delivered) + row("Opened", counts.opens_unique) + row("Clicked", counts.clicks_unique);
+          })()}
+          <p class="helptext">Bars show unique recipients as a share of emails sent. Opens are approximate.</p>
         </div>
 
         <div class="card">

@@ -286,3 +286,11 @@ against Supabase:
   — so analytics can't be tested against a purely local dev server unless
   you tunnel it (e.g. with ngrok) and register that URL as the webhook
   endpoint temporarily.
+
+## Theme and design
+
+The UI uses a warm off-white / black / gold palette with a dark mode
+(toggle in the top nav; the choice is remembered, and the first visit
+follows your system setting). All colors live as CSS variables at the top
+of `public/css/style.css` — change `--accent` (gold), `--bg`, `--primary`
+etc. in the light and dark blocks to re-theme the whole app in one place.
