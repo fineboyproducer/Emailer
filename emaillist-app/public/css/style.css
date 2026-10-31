@@ -399,6 +399,7 @@ td.num-cell, .tnum { font-variant-numeric: tabular-nums; }
   .scrim { display: block; position: fixed; inset: 0; background: rgba(8, 9, 11, .65); z-index: 140; opacity: 0; pointer-events: none; transition: opacity .25s; }
   .scrim.on { opacity: 1; pointer-events: auto; }
   .sb-link { padding: 12px 12px; }                 /* touch-sized */
+  .sb-link.sb-sub { padding: 10px 12px 10px 42px; }
   .sb-link.active::before { left: -14px; }
   .toast-stack { right: 16px; left: 16px; bottom: 16px; width: auto; }
 }
@@ -418,6 +419,7 @@ td.num-cell, .tnum { font-variant-numeric: tabular-nums; }
   .funnel-row { grid-template-columns: 74px 1fr 64px; gap: 10px; }
   .btn { padding: 12px 18px; }                      /* comfortable tap targets */
   .btn-sm { padding: 8px 12px; }
+  .action-row .btn { flex: 1 1 auto; justify-content: center; }
   .modal { padding: 22px; border-radius: 18px; }
   .modal-actions .btn { flex: 1; }
 
