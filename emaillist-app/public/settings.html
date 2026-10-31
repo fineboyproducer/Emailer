@@ -3,14 +3,16 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Settings · Email List</title>
-<script>try{document.documentElement.dataset.theme=localStorage.getItem("theme")||(matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light")}catch(e){}</script>
+<meta name="theme-color" content="#101114">
+<title>Settings · Emailer</title>
 <link rel="stylesheet" href="/css/style.css">
 </head>
 <body>
   <div class="container">
-    <h1>Settings</h1>
-    <p class="subtitle">Diagnostics for your deployment.</p>
+    <div class="page-head"><div>
+      <h1>Settings</h1>
+      <p class="subtitle">Check that your sending connection is healthy.</p>
+    </div></div>
 
     <div class="card">
       <h2>Resend Connection</h2>
@@ -49,7 +51,7 @@
     const testMsg = document.getElementById("testMsg");
 
     function pill(text, ok) {
-      return `<span class="status-pill ${ok ? "active" : ""}" style="${ok ? "" : "border-color:var(--danger);color:var(--danger);"}">${text}</span>`;
+      return `<span class="status-pill ${ok ? "active" : ""}" style="${ok ? "" : "color:var(--danger)"}">${text}</span>`;
     }
 
     async function loadStatus() {
@@ -76,7 +78,7 @@
       btn.textContent = "Testing…";
       try {
         await api("/api/settings/resend-test", { method: "POST" });
-        showMsg(testMsg, "Connected — Resend accepted the API key.", "success");
+        showMsg(testMsg, "Connected — Resend accepted your API key.", "success");
       } catch (err) {
         showMsg(testMsg, err.message);
       } finally {

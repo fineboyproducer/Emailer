@@ -3,14 +3,14 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Contact · Email List</title>
-<script>try{document.documentElement.dataset.theme=localStorage.getItem("theme")||(matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light")}catch(e){}</script>
+<meta name="theme-color" content="#101114">
+<title>Contact · Emailer</title>
 <link rel="stylesheet" href="/css/style.css">
 </head>
 <body>
   <div class="container">
-    <a href="/contacts.html" class="link-btn" style="display:inline-block;margin-bottom:16px;">&larr; All contacts</a>
-    <div id="wrap"><div class="empty-state">Loading…</div></div>
+    <a href="/contacts.html" class="link-btn" style="margin-bottom:18px;"><i data-lucide="arrow-left"></i>Your audience</a>
+    <div id="wrap"><div class="skeleton sk-block" style="height:180px"></div></div>
   </div>
 
   <script src="/js/app.js"></script>
@@ -44,18 +44,23 @@
     }
 
     (async () => {
-      if (!id) return;
-      const [{ contact }, { activity }] = await Promise.all([
-        api(`/api/contacts/${id}`),
-        api(`/api/contacts/${id}/activity`),
-      ]);
-
       const wrap = document.getElementById("wrap");
+      if (!id) { wrap.innerHTML = emptyState({ title: "No contact selected", body: "Choose someone from your audience to see their activity.", href: "/contacts.html", label: "Your audience" }); refreshIcons(); return; }
+      let contact, activity;
+      try {
+        [{ contact }, { activity }] = await Promise.all([api(`/api/contacts/${id}`), api(`/api/contacts/${id}/activity`)]);
+      } catch (err) {
+        wrap.innerHTML = `<div class="msg error">Couldn't load this contact: ${escapeHtml(err.message)}</div>`;
+        return;
+      }
+
       wrap.innerHTML = `
+        <div class="page-head"><div>
         <h1>${escapeHtml(contact.name) || "(no name)"}</h1>
         <p class="subtitle">${escapeHtml(contact.email)} · <span class="status-pill ${contact.status}">${contact.status}</span></p>
+        </div></div>
 
-        <div class="card">
+        <div class="card section">
           <h2>Segments</h2>
           <div class="badge-row">
             ${contact.segments.length ? contact.segments.map(s => `<span class="badge">${escapeHtml(s.name)}</span>`).join("") : `<span class="helptext">Not in any segment.</span>`}
@@ -63,17 +68,18 @@
         </div>
 
         <div class="card">
-          <h2>Recent activity</h2>
+          <h2>Their recent activity</h2>
           <div id="activityWrap"></div>
         </div>
       `;
 
       const activityWrap = document.getElementById("activityWrap");
       if (!activity.length) {
-        activityWrap.innerHTML = `<div class="empty-state">No email activity recorded yet.</div>`;
+        activityWrap.innerHTML = `<div class="empty-state">No email activity recorded yet. Opens, clicks and deliveries will show up here after your next campaign.</div>`;
       } else {
         activityWrap.innerHTML = `<div style="font-size:14px;line-height:2;">${activity.map(a => `<div>${activityLine(a)}</div>`).join("")}</div>`;
       }
+      refreshIcons();
     })();
   </script>
 </body>

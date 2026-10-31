@@ -3,18 +3,20 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Create Email · Email List</title>
-<script>try{document.documentElement.dataset.theme=localStorage.getItem("theme")||(matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light")}catch(e){}</script>
+<meta name="theme-color" content="#101114">
+<title>New Campaign · Emailer</title>
 <link rel="stylesheet" href="/css/style.css">
 </head>
 <body>
   <div class="container">
-    <h1>Create Email</h1>
-    <p class="subtitle">Write your email once. Use <code>{{name}}</code> for a contact's name, or <code>{{email}}</code> for their address.</p>
+    <div class="page-head"><div>
+      <h1>Create Your Campaign</h1>
+      <p class="subtitle">Write your message once. Use <code>{{name}}</code> for a contact's name, or <code>{{email}}</code> for their address.</p>
+    </div></div>
 
     <div id="msg" class="msg" style="display:none;"></div>
 
-    <div class="card">
+    <div class="card section">
       <div class="field-row">
         <div class="field">
           <label for="subject">Subject</label>
@@ -43,22 +45,22 @@
       </div>
     </div>
 
-    <div class="card">
-      <h2>Recipients</h2>
+    <div class="card section">
+      <h2>Your Recipients</h2>
       <div class="radio-row">
         <label><input type="radio" name="recipientMode" value="all" checked> All active contacts</label>
         <label><input type="radio" name="recipientMode" value="segments"> Select segments</label>
       </div>
       <div id="segmentPicker" style="display:none;">
-        <div class="checkbox-list" id="segmentCheckList"><div class="empty-state">Loading segments…</div></div>
+        <div class="checkbox-list" id="segmentCheckList"><div class="skeleton sk-line"></div></div>
       </div>
       <p class="helptext" style="margin-top:12px;" id="estimateLabel">Estimated recipients: …</p>
     </div>
 
-    <div class="card">
+    <div class="card section">
       <div class="action-row">
-        <button class="btn btn-secondary" id="sendTestBtn">Send Test Email</button>
-        <button class="btn" id="reviewBtn">Review &amp; Send</button>
+        <button class="btn btn-secondary" id="sendTestBtn"><i data-lucide="flask-conical"></i>Send test email</button>
+        <button class="btn" id="reviewBtn"><i data-lucide="send"></i>Review &amp; send</button>
       </div>
     </div>
 
@@ -226,7 +228,13 @@
           if (mode === "segments") body.segmentIds = [...selectedSegmentIds].map(Number);
           const result = await api("/api/campaigns/send", { method: "POST", body: JSON.stringify(body) });
           close();
-          showMsg(msg, `Sent to ${result.sent} contact(s).${result.failed ? ` ${result.failed} failed.` : ""}`, "success");
+          toast({
+            title: result.failed ? "Campaign sent, with some failures" : "Your campaign is on its way",
+            body: `Sent to ${result.sent} contact${result.sent === 1 ? "" : "s"}.${result.failed ? ` ${result.failed} failed.` : " Results will appear as deliveries arrive."}`,
+            href: result.campaignId || result.id ? `/campaign.html?id=${result.campaignId || result.id}` : "/campaigns.html",
+            hrefLabel: "View your campaign",
+            duration: 8000,
+          });
         } catch (err) {
           close();
           showMsg(msg, err.message);
@@ -265,6 +273,7 @@
       }
     }
 
+    refreshIcons();
     (async () => {
       await loadSegments();
       await maybeLoadDuplicate();

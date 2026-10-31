@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#101114">
+<title>Analytics · Emailer</title>
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <div class="container">
+    <div class="page-head">
+      <div>
+        <h1>Your Performance</h1>
+        <p class="subtitle">How your campaigns are landing, based on delivery and engagement events reported by Resend.</p>
+      </div>
+      <div class="seg" role="group" aria-label="Date range" id="rangeSeg">
+        <button data-range="today" aria-pressed="false">Today</button>
+        <button data-range="7d" aria-pressed="false">7 days</button>
+        <button data-range="30d" aria-pressed="true">30 days</button>
+        <button data-range="all" aria-pressed="false">All time</button>
+      </div>
+    </div>
+
+    <div class="stat-grid" id="metrics"><div class="metric"><div class="skeleton sk-line"></div><div class="skeleton" style="height:34px;margin-top:14px"></div></div></div>
+
+    <div class="card section">
+      <div class="card-head"><h2>Open and click rate over time</h2></div>
+      <div id="chart"><div class="skeleton sk-block"></div></div>
+      <p class="helptext">Open tracking is approximate: some email clients block tracking pixels and some privacy features preload images, so opens can be under- or over-counted. Clicks and deliveries are more reliable.</p>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><h2>Every campaign</h2></div>
+      <div id="all"><div class="skeleton sk-block" style="height:140px"></div></div>
+    </div>
+  </div>
+
+  <script src="/js/app.js"></script>
+  <script src="/js/chart.js"></script>
+  <script>
+    renderNav("/analytics.html");
+    let range = "30d";
+    const PREV_LABEL = { today: "yesterday", "7d": "the previous 7 days", "30d": "the previous 30 days" };
+
+    function delta(cur, prev, kind, invert) {
+      if (range === "all") return { cls: "", html: "All time" };
+      if (prev === null || prev === undefined || cur === null || cur === undefined) return { cls: "", html: "No data for " + PREV_LABEL[range] };
+      let diff, text;
+      if (kind === "count") {
+        if (prev === 0) return { cls: "", html: cur > 0 ? "New — none in " + PREV_LABEL[range] : "No change" };
+        diff = ((cur - prev) / prev) * 100; text = `${Math.abs(diff).toFixed(0)}%`;
+      } else { diff = (cur - prev) * 100; text = `${Math.abs(diff).toFixed(1)} pts`; }
+      if (Math.abs(diff) < 0.05) return { cls: "", html: `<i data-lucide="minus"></i>Same as ${PREV_LABEL[range]}` };
+      const up = diff > 0, good = invert ? !up : up;
+      return { cls: good ? "up" : "down", html: `<i data-lucide="trending-${up ? "up" : "down"}"></i>${text} vs ${PREV_LABEL[range]}` };
+    }
+
+    function tile(label, iconName, valueId, d, meter) {
+      return `<div class="metric"><div class="metric-top"><span class="metric-label">${label}</span><span class="metric-icon"><i data-lucide="${iconName}"></i></span></div>
+        <div class="metric-value" id="${valueId}">—</div><div class="metric-delta ${d.cls}">${d.html}</div>
+        ${meter !== undefined ? `<div class="meter" aria-hidden="true"><span data-w="${meter === null ? 0 : Math.min(100, meter * 100).toFixed(1)}"></span></div>` : ""}</div>`;
+    }
+
+    function render(p, q) {
+      const pc = (n) => `${n.toFixed(1)}%`;
+      document.getElementById("metrics").innerHTML =
+        tile("Emails sent", "mail", "a-sent", delta(p.emailsSent, q && q.emailsSent, "count")) +
+        tile("Delivery rate", "mail-check", "a-del", delta(p.deliveryRate, q && q.deliveryRate, "rate"), p.deliveryRate) +
+        tile("Open rate", "eye", "a-open", delta(p.openRate, q && q.openRate, "rate"), p.openRate) +
+        tile("Click rate", "mouse-pointer-click", "a-click", delta(p.clickRate, q && q.clickRate, "rate"), p.clickRate) +
+        tile("Unsubscribe rate", "user-minus", "a-unsub", delta(p.unsubscribeRate, q && q.unsubscribeRate, "rate", true), p.unsubscribeRate) +
+        tile("Complaint rate", "shield-alert", "a-comp", delta(p.complaintRate, q && q.complaintRate, "rate", true), p.complaintRate);
+      animateNumber(document.getElementById("a-sent"), p.emailsSent);
+      [["a-del", p.deliveryRate], ["a-open", p.openRate], ["a-click", p.clickRate], ["a-unsub", p.unsubscribeRate], ["a-comp", p.complaintRate]]
+        .forEach(([id, v]) => animateNumber(document.getElementById(id), v === null ? null : v * 100, { format: pc }));
+      requestAnimationFrame(() => document.querySelectorAll(".meter > span").forEach((s) => (s.style.width = s.dataset.w + "%")));
+    }
+
+    function renderAll(list) {
+      const el = document.getElementById("all");
+      if (!list.length) {
+        el.innerHTML = emptyState({ title: "No campaigns to analyse yet", body: "Send your first campaign and its results will be listed here.", href: "/compose.html", label: "Create a campaign" });
+        return;
+      }
+      el.innerHTML = `<table class="table-cards"><thead><tr><th>Campaign</th><th>Date</th><th>Sent</th><th>Delivered</th><th>Open rate</th><th>Click rate</th><th>Unsubscribes</th></tr></thead><tbody>
+        ${list.map((c) => `<tr>
+          <td class="cell-title"><a href="/campaign.html?id=${c.id}">${escapeHtml(c.subject)}</a></td>
+          <td data-label="Date">${new Date(c.sent_at).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}</td>
+          <td data-label="Sent" class="tnum">${formatNumber(c.sent)}</td>
+          <td data-label="Delivered" class="tnum">${formatNumber(c.delivered)}</td>
+          <td data-label="Open rate" class="tnum">${formatRate(c.open_rate)}</td>
+          <td data-label="Click rate" class="tnum">${formatRate(c.click_rate)}</td>
+          <td data-label="Unsubscribes" class="tnum">${formatNumber(c.unsubscribed)}</td></tr>`).join("")}</tbody></table>`;
+    }
+
+    async function load() {
+      try {
+        const [dash, list] = await Promise.all([api(`/api/campaigns/dashboard?range=${range}`), api("/api/campaigns")]);
+        render(dash.performance, dash.previousPerformance);
+        renderPerformanceChart(document.getElementById("chart"), list.campaigns);
+        renderAll(list.campaigns);
+        refreshIcons();
+      } catch (err) {
+        document.getElementById("metrics").innerHTML = `<div class="msg error" style="grid-column:1/-1">Couldn't load analytics: ${escapeHtml(err.message)}</div>`;
+      }
+    }
+
+    document.getElementById("rangeSeg").addEventListener("click", (e) => {
+      const b = e.target.closest("button[data-range]");
+      if (!b) return;
+      range = b.dataset.range;
+      document.querySelectorAll("#rangeSeg button").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
+      load();
+    });
+    load();
+  </script>
+</body>
+</html>

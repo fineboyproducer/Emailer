@@ -3,15 +3,15 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Log in · Email List</title>
-<script>try{document.documentElement.dataset.theme=localStorage.getItem("theme")||(matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light")}catch(e){}</script>
+<meta name="theme-color" content="#101114">
+<title>Log in · Emailer</title>
 <link rel="stylesheet" href="/css/style.css">
 </head>
 <body>
   <div class="auth-wrap">
     <div class="auth-card">
-      <div class="brand">Email List</div>
-      <p class="subtitle">Sign in to your dashboard.</p>
+      <a class="sb-brand" href="/login.html"><span class="sb-mark"><i data-lucide="arrow-up-right"></i></span>Emailer</a>
+      <p class="tagline">Every message moves you forward.</p>
       <div class="card">
         <div id="msg" class="msg error" style="display:none;"></div>
         <form id="loginForm">
@@ -26,6 +26,7 @@
   </div>
   <script src="/js/app.js"></script>
   <script>
+    refreshIcons();
     const msg = document.getElementById("msg");
     document.getElementById("loginForm").addEventListener("submit", async (e) => {
       e.preventDefault();

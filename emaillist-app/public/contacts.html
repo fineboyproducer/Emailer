@@ -3,18 +3,20 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Contacts · Email List</title>
-<script>try{document.documentElement.dataset.theme=localStorage.getItem("theme")||(matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light")}catch(e){}</script>
+<meta name="theme-color" content="#101114">
+<title>Audience · Emailer</title>
 <link rel="stylesheet" href="/css/style.css">
 </head>
 <body>
   <div class="container">
-    <h1>Contacts</h1>
-    <p class="subtitle">People on your list. Only people who've given you permission to email them.</p>
+    <div class="page-head"><div>
+      <h1>Your Audience</h1>
+      <p class="subtitle">The people you reach. Only include those who've given you permission to email them.</p>
+    </div><a class="btn btn-secondary" href="/segments.html"><i data-lucide="layers"></i>Your segments</a></div>
 
     <div id="msg" class="msg" style="display:none;"></div>
 
-    <div class="card">
+    <div class="card section">
       <h2>Add a contact</h2>
       <form id="addForm">
         <div class="field-row">
@@ -31,7 +33,7 @@
       </form>
     </div>
 
-    <div class="card">
+    <div class="card section">
       <h2>Upload a CSV</h2>
       <p class="helptext" style="margin-top:-6px;margin-bottom:14px;">
         Needs a header row with <strong>Name</strong> and <strong>Email</strong>. An optional <strong>Segment</strong> column
@@ -54,7 +56,7 @@
 
     <div class="card">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:10px;">
-        <h2 style="margin:0;">All contacts (<span id="countLabel">0</span>)</h2>
+        <h2 style="margin:0;">Everyone (<span id="countLabel">0</span>)</h2>
       </div>
 
       <div class="filter-bar">
@@ -89,7 +91,7 @@
         <button class="btn btn-danger btn-sm" id="bulkDeleteBtn">Delete selected</button>
       </div>
 
-      <div id="tableWrap"><div class="empty-state">Loading…</div></div>
+      <div id="tableWrap"><div class="skeleton sk-block" style="height:160px"></div></div>
     </div>
   </div>
 
@@ -133,23 +135,27 @@
       document.getElementById("countLabel").textContent = currentContacts.length;
       const wrap = document.getElementById("tableWrap");
       if (!currentContacts.length) {
-        wrap.innerHTML = `<div class="empty-state">No contacts match. Try adjusting search or filters.</div>`;
+        const filtered = document.getElementById("searchInput").value || document.getElementById("statusFilter").value || document.getElementById("segmentFilter").value;
+        wrap.innerHTML = filtered
+          ? `<div class="empty-state">No one matches. Try adjusting your search or filters.</div>`
+          : emptyState({ title: "Your audience starts with one contact", body: "Add someone above, or upload a CSV to bring in your list. Only include people who've agreed to hear from you." });
+        refreshIcons();
       } else {
         wrap.innerHTML = `
-          <table>
+          <table class="table-cards">
             <thead><tr>
-              <th style="width:30px;"><input type="checkbox" id="selectAll"></th>
+              <th style="width:30px;"><input type="checkbox" id="selectAll" aria-label="Select all"></th>
               <th>Name</th><th>Email</th><th>Status</th><th>Segments</th><th></th>
             </tr></thead>
             <tbody>
               ${currentContacts.map(c => `
                 <tr>
                   <td><input type="checkbox" class="rowCheck" value="${c.id}" ${selected.has(c.id) ? "checked" : ""}></td>
-                  <td><a href="/contact.html?id=${c.id}">${escapeHtml(c.name) || "—"}</a></td>
-                  <td>${escapeHtml(c.email)}</td>
-                  <td><span class="status-pill ${c.status}">${c.status}</span></td>
-                  <td><div class="badge-row">${c.segments.map(s => `<span class="badge">${escapeHtml(s.name)}</span>`).join("") || "—"}</div></td>
-                  <td><button class="btn btn-danger btn-sm" data-id="${c.id}">Delete</button></td>
+                  <td class="cell-title"><a href="/contact.html?id=${c.id}">${escapeHtml(c.name) || "—"}</a></td>
+                  <td data-label="Email">${escapeHtml(c.email)}</td>
+                  <td data-label="Status"><span class="status-pill ${c.status}">${c.status}</span></td>
+                  <td data-label="Segments"><div class="badge-row">${c.segments.map(s => `<span class="badge">${escapeHtml(s.name)}</span>`).join("") || "—"}</div></td>
+                  <td><button class="btn btn-danger btn-sm" data-id="${c.id}" aria-label="Delete ${escapeHtml(c.email)}">Delete</button></td>
                 </tr>
               `).join("")}
             </tbody>
@@ -242,7 +248,7 @@
         <p style="color:var(--gray-700);margin-top:10px;">This can't be undone.</p>
         <div class="modal-actions">
           <button class="btn btn-secondary" id="cancelBulkDelete">Cancel</button>
-          <button class="btn btn-danger" style="border-color:var(--danger);" id="confirmBulkDelete">Delete</button>
+          <button class="btn btn-danger" id="confirmBulkDelete">Delete</button>
         </div>
       `);
       document.getElementById("cancelBulkDelete").addEventListener("click", close);

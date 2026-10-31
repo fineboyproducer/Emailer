@@ -287,10 +287,49 @@ against Supabase:
   you tunnel it (e.g. with ngrok) and register that URL as the webhook
   endpoint temporarily.
 
-## Theme and design
+## Theme and design — "Midnight"
 
-The UI uses a warm off-white / black / gold palette with a dark mode
-(toggle in the top nav; the choice is remembered, and the first visit
-follows your system setting). All colors live as CSS variables at the top
-of `public/css/style.css` — change `--accent` (gold), `--bg`, `--primary`
-etc. in the light and dark blocks to re-theme the whole app in one place.
+The UI is a dark, premium design system called Midnight. Every colour,
+radius and shadow is a CSS variable at the top of `public/css/style.css`.
+
+| Token | Hex | Used for |
+|---|---|---|
+| `--bg` Midnight Black | `#101114` | Page background (~70% of the UI is dark surface) |
+| `--surface` Charcoal | `#191B20` | Cards and panels |
+| `--text` Warm White | `#F5F3ED` | Primary text |
+| `--muted` Muted Grey | `#92949B` | Secondary text |
+| `--gold` Champagne Gold | `#D6B46A` | Accent only: primary button, active nav, key highlights |
+
+Type: Manrope (headings, metrics) and Inter (body), via Google Fonts; icons
+are Lucide. Dark only - there is no light mode or theme toggle.
+
+**How it's built** (plain HTML/CSS/JS, no build step):
+
+- `public/js/app.js` - shared shell: `renderNav(active)` builds the sidebar
+  (and mobile top bar + drawer), plus `toast()`, `animateNumber()`,
+  `emptyState()`, `api()`, formatting helpers.
+- `public/js/chart.js` - the Campaign Performance chart (hand-built SVG,
+  no chart library) and the "Your Next Insight" logic.
+- Pages: `index.html` (Overview), `analytics.html`, `campaigns.html`,
+  `campaign.html`, `compose.html`, `contacts.html`, `contact.html`,
+  `segments.html`, `settings.html`, `login.html`.
+- Tables use the `.table-cards` class, which stacks rows into cards on
+  phones. Animations respect `prefers-reduced-motion`.
+
+**Honest limits**
+
+- **Templates** and **Automations** appear in the sidebar as disabled
+  "Soon" items - there is no backend for either yet.
+- **Your Next Insight** only appears when there is real data to support it
+  (at least 10 delivered emails across the campaigns compared). Nothing is
+  invented.
+- **Previous-period comparison** on the Overview cards uses the matching
+  earlier window (e.g. the 30 days before the last 30). It's hidden for
+  "All time", and shows "No data" when the earlier period is empty.
+- There is no historical audience-size data, so no audience-growth chart.
+- Open rates are approximate (image-blocking / privacy preloading).
+- **External CDNs:** Google Fonts and Lucide (`unpkg.com`, pinned to
+  0.469.0) load from the browser. If they're blocked, the app still works:
+  text falls back to system fonts and icons are simply absent (the menu
+  button has an inline fallback). To remove the dependency, self-host the
+  font files and `lucide.min.js` under `public/`.
