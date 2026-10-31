@@ -99,19 +99,14 @@ function rate(numerator, denominator) {
   return numerator / denominator;
 }
 
-// The window immediately before the selected range, same length. "all"
-// has no previous period.
-function previousWindow(range) {
-  const now = new Date();
+// The window immediately before the selected range, same length, ending
+// exactly where the current range starts (`since` from rangeSince(), so the
+// two windows never gap or overlap). "all" has no previous period.
+function previousWindow(range, since) {
   const DAY = 24 * 60 * 60 * 1000;
-  if (range === "today") {
-    const start = new Date(now);
-    start.setHours(0, 0, 0, 0);
-    return { from: new Date(start.getTime() - DAY), to: start };
-  }
-  if (range === "7d") return { from: new Date(now.getTime() - 14 * DAY), to: new Date(now.getTime() - 7 * DAY) };
-  if (range === "30d") return { from: new Date(now.getTime() - 60 * DAY), to: new Date(now.getTime() - 30 * DAY) };
-  return null;
+  const days = { today: 1, "7d": 7, "30d": 30 }[range];
+  if (!days || !since) return null;
+  return { from: new Date(since.getTime() - days * DAY), to: since };
 }
 
 // Aggregate delivery/engagement numbers for campaigns sent in [from, to).
@@ -173,9 +168,11 @@ router.get("/dashboard", requireLogin, async (req, res) => {
   // Email performance, aggregated across every campaign in range - and
   // across the equivalent previous period, when there is one (for the
   // "vs previous period" comparison on the Overview cards).
-  const current = await performanceBetween(since, null);
-  const prevWindow = previousWindow(range);
-  const previous = prevWindow ? await performanceBetween(prevWindow.from, prevWindow.to) : null;
+  const prevWindow = previousWindow(range, since);
+  const [current, previous] = await Promise.all([
+    performanceBetween(since, null),
+    prevWindow ? performanceBetween(prevWindow.from, prevWindow.to) : Promise.resolve(null),
+  ]);
 
   res.json({
     range,
