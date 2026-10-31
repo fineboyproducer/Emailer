@@ -3,19 +3,21 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Segments · Email List</title>
-<script>try{document.documentElement.dataset.theme=localStorage.getItem("theme")||(matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light")}catch(e){}</script>
+<meta name="theme-color" content="#101114">
+<title>Segments · Emailer</title>
 <link rel="stylesheet" href="/css/style.css">
 </head>
 <body>
   <div class="container">
     <div id="listView">
-      <h1>Segments</h1>
-      <p class="subtitle">Group your contacts however makes sense to you. A contact can belong to as many segments as you like.</p>
+      <div class="page-head"><div>
+      <h1>Your Segments</h1>
+      <p class="subtitle">Group your audience however makes sense to you. A contact can belong to as many segments as you like.</p>
+      </div></div>
 
       <div id="msg" class="msg" style="display:none;"></div>
 
-      <div class="card">
+      <div class="card section">
         <h2>Create a segment</h2>
         <form id="createForm">
           <div class="field-row">
@@ -33,18 +35,18 @@
       </div>
 
       <div class="card">
-        <h2>All segments</h2>
-        <div id="segList"><div class="empty-state">Loading…</div></div>
+        <h2>Everything you've grouped</h2>
+        <div id="segList"><div class="skeleton sk-block" style="height:120px"></div></div>
       </div>
     </div>
 
     <div id="detailView" style="display:none;">
-      <button class="link-btn" id="backBtn" style="margin-bottom:16px;">&larr; All segments</button>
-      <h1 id="detailName"></h1>
-      <p class="subtitle" id="detailDesc"></p>
+      <button class="link-btn" id="backBtn" style="margin-bottom:18px;"><i data-lucide="arrow-left"></i>Your segments</button>
+      <div class="page-head"><div><h1 id="detailName"></h1>
+      <p class="subtitle" id="detailDesc"></p></div></div>
       <div id="detailMsg" class="msg" style="display:none;"></div>
 
-      <div class="card">
+      <div class="card section">
         <h2>Add contacts to this segment</h2>
         <div class="field">
           <label for="addSearch">Search contacts by name or email</label>
@@ -57,7 +59,7 @@
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
           <h2 style="margin:0;">Contacts in this segment (<span id="memberCount">0</span>)</h2>
         </div>
-        <div id="memberList"><div class="empty-state">Loading…</div></div>
+        <div id="memberList"><div class="skeleton sk-block" style="height:120px"></div></div>
       </div>
     </div>
   </div>
@@ -76,11 +78,12 @@
       segmentsCache = segments;
       const wrap = document.getElementById("segList");
       if (!segments.length) {
-        wrap.innerHTML = `<div class="empty-state">No segments yet. Create one above.</div>`;
+        wrap.innerHTML = emptyState({ title: "Your first segment is a minute away", body: "Segments let you send the right message to the right people. Create one above, then add contacts to it." });
+        refreshIcons();
         return;
       }
       wrap.innerHTML = `
-        <table>
+        <table class="table-cards">
           <thead><tr>
             <th>Name</th><th>Contacts</th><th>Active</th><th>Campaigns sent</th>
             <th>Avg open rate</th><th>Avg click rate</th><th></th>
@@ -88,15 +91,15 @@
           <tbody>
             ${segments.map(s => `
               <tr>
-                <td>
+                <td class="cell-title">
                   <a href="/segments.html?id=${s.id}">${escapeHtml(s.name)}</a>
                   ${s.description ? `<div class="helptext" style="margin-top:2px;">${escapeHtml(s.description)}</div>` : ""}
                 </td>
-                <td>${s.contact_count}</td>
-                <td>${s.active_count}</td>
-                <td>${s.campaigns_sent}</td>
-                <td>${formatRate(s.avg_open_rate)}</td>
-                <td>${formatRate(s.avg_click_rate)}</td>
+                <td data-label="Contacts" class="tnum">${s.contact_count}</td>
+                <td data-label="Active" class="tnum">${s.active_count}</td>
+                <td data-label="Campaigns sent" class="tnum">${s.campaigns_sent}</td>
+                <td data-label="Avg open rate" class="tnum">${formatRate(s.avg_open_rate)}</td>
+                <td data-label="Avg click rate" class="tnum">${formatRate(s.avg_click_rate)}</td>
                 <td>
                   <button class="btn btn-secondary btn-sm" data-rename="${s.id}">Rename</button>
                   <button class="btn btn-danger btn-sm" data-delete="${s.id}">Delete</button>
@@ -161,7 +164,7 @@
         <p style="color:var(--gray-700);margin-top:10px;">This removes the segment. Contacts inside it are kept — only the grouping is deleted.</p>
         <div class="modal-actions">
           <button class="btn btn-secondary" id="cancelDelete">Cancel</button>
-          <button class="btn btn-danger" style="border-color:var(--danger);" id="confirmDelete">Delete segment</button>
+          <button class="btn btn-danger" id="confirmDelete">Delete segment</button>
         </div>
       `);
       document.getElementById("cancelDelete").addEventListener("click", close);
@@ -200,17 +203,18 @@
 
       const wrap = document.getElementById("memberList");
       if (!contacts.length) {
-        wrap.innerHTML = `<div class="empty-state">No contacts in this segment yet. Search above to add some.</div>`;
+        wrap.innerHTML = emptyState({ title: "This segment is empty", body: "Search above to add people from your audience.", href: "/contacts.html", label: "Open your audience" });
+        refreshIcons();
       } else {
         wrap.innerHTML = `
-          <table>
+          <table class="table-cards">
             <thead><tr><th>Name</th><th>Email</th><th>Status</th><th></th></tr></thead>
             <tbody>
               ${contacts.map(c => `
                 <tr>
-                  <td>${escapeHtml(c.name) || "—"}</td>
-                  <td>${escapeHtml(c.email)}</td>
-                  <td><span class="status-pill ${c.status}">${c.status}</span></td>
+                  <td class="cell-title">${escapeHtml(c.name) || "—"}</td>
+                  <td data-label="Email">${escapeHtml(c.email)}</td>
+                  <td data-label="Status"><span class="status-pill ${c.status}">${c.status}</span></td>
                   <td><button class="btn btn-danger btn-sm" data-remove="${c.id}">Remove</button></td>
                 </tr>
               `).join("")}

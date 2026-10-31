@@ -3,152 +3,213 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Dashboard · Email List</title>
-<script>try{document.documentElement.dataset.theme=localStorage.getItem("theme")||(matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light")}catch(e){}</script>
+<meta name="theme-color" content="#101114">
+<title>Overview · Emailer</title>
 <link rel="stylesheet" href="/css/style.css">
 </head>
 <body>
   <div class="container">
-    <div style="display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:12px;margin-bottom:8px;">
+    <div class="page-head">
       <div>
-        <h1 style="margin-bottom:0;">Dashboard</h1>
-        <p class="subtitle" style="margin-bottom:0;">Your email list, at a glance.</p>
+        <h1>Welcome back.</h1>
+        <p class="subtitle">Your communication is creating opportunities. Here's how things are going.</p>
       </div>
-      <div class="navlinks" style="border:1px solid var(--gray-300);border-radius:8px;padding:2px;">
-        <a href="#" data-range="today" class="range-tab">Today</a>
-        <a href="#" data-range="7d" class="range-tab">7 days</a>
-        <a href="#" data-range="30d" class="range-tab">30 days</a>
-        <a href="#" data-range="all" class="range-tab active">All time</a>
-      </div>
-    </div>
-    <div style="margin-bottom:28px;"></div>
-
-    <div class="stat-grid" id="statGrid">
-      <div class="stat"><div class="num">–</div><div class="label">Total contacts</div></div>
-      <div class="stat"><div class="num">–</div><div class="label">Active contacts</div></div>
-      <div class="stat"><div class="num">–</div><div class="label">Unsubscribed</div></div>
-      <div class="stat"><div class="num">–</div><div class="label">Segments</div></div>
-      <div class="stat"><div class="num">–</div><div class="label">Campaigns sent</div></div>
-    </div>
-
-    <div class="card">
-      <h2>Email performance</h2>
-      <p class="helptext" style="margin-top:-8px;margin-bottom:14px;" id="perfHelp">Across campaigns sent in the selected range.</p>
-      <div class="stat-grid" id="perfGrid" style="margin-bottom:0;">
-        <div class="stat"><div class="num">–</div><div class="label">Emails sent</div></div>
-        <div class="stat"><div class="num">–</div><div class="label">Delivery rate</div></div>
-        <div class="stat"><div class="num">–</div><div class="label">Open rate</div></div>
-        <div class="stat"><div class="num">–</div><div class="label">Click rate</div></div>
-        <div class="stat"><div class="num">–</div><div class="label">Unsubscribe rate</div></div>
-        <div class="stat"><div class="num">–</div><div class="label">Complaint rate</div></div>
+      <div class="seg" role="group" aria-label="Date range" id="rangeSeg">
+        <button data-range="today" aria-pressed="false">Today</button>
+        <button data-range="7d" aria-pressed="false">7 days</button>
+        <button data-range="30d" aria-pressed="true">30 days</button>
+        <button data-range="all" aria-pressed="false">All time</button>
       </div>
     </div>
 
-    <div class="action-row" style="margin-bottom:32px;">
-      <a class="btn" href="/compose.html">Create Email</a>
-      <a class="btn btn-secondary" href="/contacts.html">Contacts</a>
-      <a class="btn btn-secondary" href="/segments.html">Segments</a>
-      <a class="btn btn-secondary" href="/campaigns.html">Campaigns</a>
+    <div id="onboarding"></div>
+
+    <div class="stat-grid" id="metrics">
+      <div class="metric"><div class="skeleton sk-line" style="width:50%"></div><div class="skeleton" style="height:34px;width:70%;margin-top:14px"></div></div>
+      <div class="metric"><div class="skeleton sk-line" style="width:50%"></div><div class="skeleton" style="height:34px;width:70%;margin-top:14px"></div></div>
+      <div class="metric"><div class="skeleton sk-line" style="width:50%"></div><div class="skeleton" style="height:34px;width:70%;margin-top:14px"></div></div>
+      <div class="metric"><div class="skeleton sk-line" style="width:50%"></div><div class="skeleton" style="height:34px;width:70%;margin-top:14px"></div></div>
+    </div>
+
+    <div class="grid-main">
+      <div class="card">
+        <div class="card-head"><h2>Campaign Performance</h2></div>
+        <div id="chart"><div class="skeleton sk-block"></div></div>
+        <p class="helptext">Open tracking is approximate — some email clients block or preload tracking pixels.</p>
+      </div>
+      <div class="card insight" id="insight"><div class="skeleton sk-line" style="width:40%"></div><div class="skeleton sk-line"></div><div class="skeleton sk-line" style="width:80%"></div></div>
+    </div>
+
+    <div class="card section">
+      <div class="card-head">
+        <h2>Your Campaigns</h2>
+        <a class="link-btn" href="/campaigns.html">View all <i data-lucide="arrow-right"></i></a>
+      </div>
+      <div id="recent"><div class="skeleton sk-block" style="height:140px"></div></div>
     </div>
 
     <div class="card">
-      <h2>Segments</h2>
-      <div id="segmentsWrap"><div class="empty-state">Loading…</div></div>
-    </div>
-
-    <div class="card">
-      <h2>Recent campaigns</h2>
-      <div id="campaignsWrap"><div class="empty-state">Loading…</div></div>
+      <div class="card-head">
+        <h2>Your Audience</h2>
+        <a class="link-btn" href="/contacts.html">Manage <i data-lucide="arrow-right"></i></a>
+      </div>
+      <div id="audience"><div class="skeleton sk-block" style="height:120px"></div></div>
     </div>
   </div>
 
   <script src="/js/app.js"></script>
+  <script src="/js/chart.js"></script>
   <script>
     renderNav("/index.html");
-    let currentRange = "all";
 
-    document.querySelectorAll(".range-tab").forEach(tab => {
-      tab.addEventListener("click", (e) => {
-        e.preventDefault();
-        currentRange = tab.dataset.range;
-        document.querySelectorAll(".range-tab").forEach(t => t.classList.remove("active"));
-        tab.classList.add("active");
-        load();
-      });
-    });
+    let range = "30d";
+    let allCampaigns = [];
+    const PREV_LABEL = { today: "yesterday", "7d": "the previous 7 days", "30d": "the previous 30 days" };
+
+    // Comparison against the previous period — only when both sides have data.
+    function delta(cur, prev, kind) {
+      if (range === "all") return { cls: "", html: "All time" };
+      if (prev === null || prev === undefined || cur === null || cur === undefined) {
+        return { cls: "", html: "No data for " + PREV_LABEL[range] };
+      }
+      if (kind === "count") {
+        if (prev === 0) return { cls: cur > 0 ? "up" : "", html: cur > 0 ? `<i data-lucide="trending-up"></i>New — none in ${PREV_LABEL[range]}` : "No change" };
+        const change = ((cur - prev) / prev) * 100;
+        if (Math.abs(change) < 0.5) return { cls: "", html: `<i data-lucide="minus"></i>Same as ${PREV_LABEL[range]}` };
+        const up = change > 0;
+        return { cls: up ? "up" : "down", html: `<i data-lucide="trending-${up ? "up" : "down"}"></i>${Math.abs(change).toFixed(0)}% vs ${PREV_LABEL[range]}` };
+      }
+      const pts = (cur - prev) * 100;
+      if (Math.abs(pts) < 0.05) return { cls: "", html: `<i data-lucide="minus"></i>Same as ${PREV_LABEL[range]}` };
+      const up = pts > 0;
+      return { cls: up ? "up" : "down", html: `<i data-lucide="trending-${up ? "up" : "down"}"></i>${Math.abs(pts).toFixed(1)} pts vs ${PREV_LABEL[range]}` };
+    }
+
+    function metricCard({ id, label, iconName, meter, d }) {
+      return `<div class="metric">
+        <div class="metric-top"><span class="metric-label">${label}</span><span class="metric-icon"><i data-lucide="${iconName}"></i></span></div>
+        <div class="metric-value" id="${id}">—</div>
+        <div class="metric-delta ${d.cls}">${d.html}</div>
+        ${meter !== undefined ? `<div class="meter" aria-hidden="true"><span data-w="${meter === null ? 0 : (meter * 100).toFixed(1)}"></span></div>` : ""}
+      </div>`;
+    }
+
+    function renderMetrics(p, prev) {
+      const noData = p.emailsSent === 0;
+      document.getElementById("metrics").innerHTML =
+        metricCard({ id: "m-sent", label: "Emails Sent", iconName: "mail", d: delta(p.emailsSent, prev && prev.emailsSent, "count") }) +
+        metricCard({ id: "m-del", label: "Delivered", iconName: "mail-check", meter: p.deliveryRate, d: delta(p.delivered, prev && prev.delivered, "count") }) +
+        metricCard({ id: "m-open", label: "Open Rate", iconName: "eye", meter: p.openRate, d: delta(p.openRate, prev && prev.openRate, "rate") }) +
+        metricCard({ id: "m-click", label: "Click Rate", iconName: "mouse-pointer-click", meter: p.clickRate, d: delta(p.clickRate, prev && prev.clickRate, "rate") });
+
+      const rate = (v) => (n) => `${n.toFixed(1)}%`;
+      animateNumber(document.getElementById("m-sent"), p.emailsSent);
+      animateNumber(document.getElementById("m-del"), p.delivered);
+      animateNumber(document.getElementById("m-open"), p.openRate === null ? null : p.openRate * 100, { format: rate() });
+      animateNumber(document.getElementById("m-click"), p.clickRate === null ? null : p.clickRate * 100, { format: rate() });
+      requestAnimationFrame(() => document.querySelectorAll(".meter > span").forEach((s) => (s.style.width = s.dataset.w + "%")));
+
+      if (noData) {
+        document.querySelectorAll(".metric-delta").forEach((el) => { if (range !== "all") el.textContent = "No emails sent in this range"; });
+      }
+    }
+
+    function renderOnboarding(dash) {
+      const steps = [
+        { done: dash.totalContacts > 0, title: "Add your audience", text: "Upload a CSV or add contacts one by one.", href: "/contacts.html" },
+        { done: dash.segments.length > 0, title: "Create a segment", text: "Group people so each message lands well.", href: "/segments.html" },
+        { done: allCampaigns.length > 0, title: "Send your first campaign", text: "Write it, preview it, send it.", href: "/compose.html" },
+      ];
+      const el = document.getElementById("onboarding");
+      const doneCount = steps.filter((s) => s.done).length;
+      if (doneCount === steps.length) { el.innerHTML = ""; return; }
+      el.innerHTML = `<div class="card section">
+        <div class="card-head"><h2>Getting started</h2><span class="helptext" style="margin:0">${doneCount} of ${steps.length} complete</span></div>
+        <div class="steps">${steps.map((s) => `<a class="step ${s.done ? "done" : ""}" href="${s.href}">
+          <span class="tick">${s.done ? '<i data-lucide="check"></i>' : ""}</span><span><b>${s.title}</b><span>${s.text}</span></span></a>`).join("")}</div>
+      </div>`;
+    }
+
+    function statusPill(c) {
+      if (c.status === "sent") return `<span class="status-pill active">Sent</span>`;
+      if (c.status === "partial") return `<span class="status-pill" style="color:var(--danger)">Partial</span>`;
+      return `<span class="status-pill" style="color:var(--danger)">Failed</span>`;
+    }
+
+    function renderRecent(list) {
+      const el = document.getElementById("recent");
+      if (!list.length) {
+        el.innerHTML = emptyState({
+          title: "Your first campaign is one step away",
+          body: "Write an email, choose who receives it, and send. Your results will appear here as they arrive.",
+          href: "/compose.html", label: "Create a campaign",
+        });
+        return;
+      }
+      el.innerHTML = `<table class="table-cards">
+        <thead><tr><th>Campaign</th><th>Date</th><th>Status</th><th>Delivered</th><th>Open rate</th><th>Click rate</th></tr></thead>
+        <tbody>${list.slice(0, 5).map((c) => `<tr>
+          <td class="cell-title"><a href="/campaign.html?id=${c.id}">${escapeHtml(c.subject)}</a></td>
+          <td data-label="Date">${new Date(c.sent_at).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</td>
+          <td data-label="Status">${statusPill(c)}</td>
+          <td data-label="Delivered" class="tnum">${formatNumber(c.delivered)}</td>
+          <td data-label="Open rate" class="tnum">${formatRate(c.open_rate)}</td>
+          <td data-label="Click rate" class="tnum">${formatRate(c.click_rate)}</td>
+        </tr>`).join("")}</tbody></table>`;
+    }
+
+    function renderAudience(d) {
+      const el = document.getElementById("audience");
+      if (d.totalContacts === 0) {
+        el.innerHTML = emptyState({
+          title: "Your audience starts with one contact",
+          body: "Upload a CSV or add people manually. Only include people who've agreed to hear from you.",
+          href: "/contacts.html", label: "Add contacts",
+        });
+        return;
+      }
+      const max = Math.max(1, ...d.segments.map((s) => s.contact_count));
+      el.innerHTML = `
+        <div class="stat-grid" style="margin-bottom:${d.segments.length ? 22 : 0}px">
+          <div><div class="metric-label">Total contacts</div><div class="num" style="font-size:26px">${formatNumber(d.totalContacts)}</div></div>
+          <div><div class="metric-label">Active</div><div class="num" style="font-size:26px">${formatNumber(d.active)}</div></div>
+          <div><div class="metric-label">Unsubscribed</div><div class="num" style="font-size:26px">${formatNumber(d.unsubscribed)}</div></div>
+          <div><div class="metric-label">Segments</div><div class="num" style="font-size:26px">${formatNumber(d.segments.length)}</div></div>
+        </div>
+        ${d.segments.length ? `<table><tbody>${d.segments.slice(0, 6).map((s) => `<tr>
+          <td style="width:34%"><a href="/segments.html?id=${s.id}">${escapeHtml(s.name)}</a></td>
+          <td><div class="meter" style="margin:0"><span data-w="${(s.contact_count / max) * 100}" style="opacity:1;background:var(--text-2)"></span></div></td>
+          <td class="tnum" style="text-align:right;width:70px;color:var(--muted)">${formatNumber(s.contact_count)}</td></tr>`).join("")}</tbody></table>`
+          : `<p class="helptext">No segments yet. <a href="/segments.html">Create one</a> to target your messages.</p>`}`;
+      requestAnimationFrame(() => el.querySelectorAll(".meter > span").forEach((s) => (s.style.width = s.dataset.w + "%")));
+    }
 
     async function load() {
       try {
-        const { totalContacts, active, unsubscribed, campaignsSent, segments, recentCampaigns, performance } =
-          await api(`/api/campaigns/dashboard?range=${currentRange}`);
-
-        const grid = document.getElementById("statGrid");
-        const stats = [
-          [totalContacts, "Total contacts"],
-          [active, "Active contacts"],
-          [unsubscribed, "Unsubscribed"],
-          [segments.length, "Segments"],
-          [campaignsSent, "Campaigns sent" + (currentRange !== "all" ? " (in range)" : "")],
-        ];
-        grid.innerHTML = stats.map(([num, label]) => `
-          <div class="stat"><div class="num">${num}</div><div class="label">${label}</div></div>
-        `).join("");
-
-        const perfGrid = document.getElementById("perfGrid");
-        const perfStats = [
-          [formatNumber(performance.emailsSent), "Emails sent"],
-          [formatRate(performance.deliveryRate), "Delivery rate"],
-          [formatRate(performance.openRate), "Open rate"],
-          [formatRate(performance.clickRate), "Click rate"],
-          [formatRate(performance.unsubscribeRate), "Unsubscribe rate"],
-          [formatRate(performance.complaintRate), "Complaint rate"],
-        ];
-        perfGrid.innerHTML = perfStats.map(([num, label]) => `
-          <div class="stat"><div class="num">${num}</div><div class="label">${label}</div></div>
-        `).join("");
-
-        const segWrap = document.getElementById("segmentsWrap");
-        if (!segments.length) {
-          segWrap.innerHTML = `<div class="empty-state">No segments yet. <a href="/segments.html">Create one</a> to start organizing your list.</div>`;
-        } else {
-          segWrap.innerHTML = `
-            <table>
-              <tbody>
-                ${segments.map(s => `
-                  <tr>
-                    <td><a href="/segments.html?id=${s.id}">${escapeHtml(s.name)}</a></td>
-                    <td style="text-align:right;color:var(--gray-500);">${s.contact_count}</td>
-                  </tr>
-                `).join("")}
-              </tbody>
-            </table>
-          `;
-        }
-
-        const campWrap = document.getElementById("campaignsWrap");
-        if (!recentCampaigns.length) {
-          campWrap.innerHTML = `<div class="empty-state">You haven't sent anything yet. <a href="/compose.html">Create your first email</a>.</div>`;
-        } else {
-          campWrap.innerHTML = `
-            <table>
-              <thead><tr><th>Subject</th><th>Date</th><th>Recipients</th><th>Status</th></tr></thead>
-              <tbody>
-                ${recentCampaigns.map(c => `
-                  <tr>
-                    <td><a href="/campaign.html?id=${c.id}">${escapeHtml(c.subject)}</a></td>
-                    <td>${new Date(c.sent_at).toLocaleDateString()}</td>
-                    <td>${c.recipient_count}</td>
-                    <td><span class="status-pill ${c.status === 'sent' ? 'active' : ''}">${c.status}</span></td>
-                  </tr>
-                `).join("")}
-              </tbody>
-            </table>
-          `;
-        }
+        const [dash, list] = await Promise.all([
+          api(`/api/campaigns/dashboard?range=${range}`),
+          api("/api/campaigns"),
+        ]);
+        allCampaigns = list.campaigns;
+        renderOnboarding(dash);
+        renderMetrics(dash.performance, dash.previousPerformance);
+        renderRecent(allCampaigns);
+        renderAudience(dash);
+        renderPerformanceChart(document.getElementById("chart"), allCampaigns);
+        renderInsights(document.getElementById("insight"), allCampaigns);
+        refreshIcons();
       } catch (err) {
-        console.error(err);
+        document.getElementById("metrics").innerHTML = `<div class="msg error" style="grid-column:1/-1">Couldn't load your overview: ${escapeHtml(err.message)}</div>`;
       }
     }
+
+    document.getElementById("rangeSeg").addEventListener("click", (e) => {
+      const b = e.target.closest("button[data-range]");
+      if (!b) return;
+      range = b.dataset.range;
+      document.querySelectorAll("#rangeSeg button").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
+      load();
+    });
 
     load();
   </script>

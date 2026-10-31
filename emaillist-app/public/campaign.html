@@ -3,14 +3,14 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Campaign Report · Email List</title>
-<script>try{document.documentElement.dataset.theme=localStorage.getItem("theme")||(matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light")}catch(e){}</script>
+<meta name="theme-color" content="#101114">
+<title>Campaign Report · Emailer</title>
 <link rel="stylesheet" href="/css/style.css">
 </head>
 <body>
   <div class="container">
-    <a href="/campaigns.html" class="link-btn" style="display:inline-block;margin-bottom:16px;">&larr; All campaigns</a>
-    <div id="wrap"><div class="empty-state">Loading…</div></div>
+    <a href="/campaigns.html" class="link-btn" style="margin-bottom:18px;"><i data-lucide="arrow-left"></i>Your campaigns</a>
+    <div id="wrap"><div class="skeleton sk-block" style="height:220px"></div></div>
   </div>
 
   <script src="/js/app.js"></script>
@@ -21,8 +21,8 @@
 
     function statusLabel(c) {
       if (c.status === "sent") return `<span class="status-pill active">Sent</span>`;
-      if (c.status === "partial") return `<span class="status-pill" style="border-color:var(--danger);color:var(--danger);">Partial</span>`;
-      return `<span class="status-pill" style="border-color:var(--danger);color:var(--danger);">Failed</span>`;
+      if (c.status === "partial") return `<span class="status-pill" style="color:var(--danger)">Partial</span>`;
+      return `<span class="status-pill" style="color:var(--danger)">Failed</span>`;
     }
 
     function statRow(label, value) {
@@ -30,28 +30,33 @@
     }
 
     (async () => {
-      if (!id) return;
-      const [{ campaign, counts, rates, topLinks }, { campaign: fullCampaign }] = await Promise.all([
-        api(`/api/campaigns/${id}/report`),
-        api(`/api/campaigns/${id}`),
-      ]);
-
       const wrap = document.getElementById("wrap");
+      if (!id) { wrap.innerHTML = emptyState({ title: "No campaign selected", body: "Pick a campaign from your list to see its report.", href: "/campaigns.html", label: "Your campaigns" }); refreshIcons(); return; }
+      let report, full;
+      try {
+        [report, full] = await Promise.all([api(`/api/campaigns/${id}/report`), api(`/api/campaigns/${id}`)]);
+      } catch (err) {
+        wrap.innerHTML = `<div class="msg error">Couldn't load this report: ${escapeHtml(err.message)}</div>`;
+        return;
+      }
+      const { campaign, counts, rates, topLinks } = report;
+      const fullCampaign = full.campaign;
+
       wrap.innerHTML = `
-        <h1>${escapeHtml(campaign.subject)}</h1>
+        <div class="page-head"><div><h1>${escapeHtml(campaign.subject)}</h1>
         <p class="subtitle">
           Sent ${new Date(campaign.sent_at).toLocaleString()} ${statusLabel(campaign)}
           · ${campaign.segments.length ? escapeHtml(campaign.segments.map(s => s.name).join(", ")) : "All active contacts"}
-        </p>
+        </p></div></div>
 
         <div class="stat-grid">
-          <div class="stat"><div class="num">${formatNumber(counts.sent)}</div><div class="label">Sent</div></div>
-          <div class="stat"><div class="num">${formatRate(rates.deliveryRate)}</div><div class="label">Delivery rate</div></div>
-          <div class="stat"><div class="num">${formatRate(rates.openRate)}</div><div class="label">Open rate (unique)</div></div>
-          <div class="stat"><div class="num">${formatRate(rates.clickRate)}</div><div class="label">Click rate (unique)</div></div>
+          <div class="stat card"><div class="label">Sent</div><div class="num">${formatNumber(counts.sent)}</div></div>
+          <div class="stat card"><div class="label">Delivery rate</div><div class="num">${formatRate(rates.deliveryRate)}</div></div>
+          <div class="stat card"><div class="label">Open rate (unique)</div><div class="num">${formatRate(rates.openRate)}</div></div>
+          <div class="stat card"><div class="label">Click rate (unique)</div><div class="num">${formatRate(rates.clickRate)}</div></div>
         </div>
 
-        <div class="card">
+        <div class="card section">
           <h2>Delivery funnel</h2>
           ${(() => {
             const base = counts.sent || 0;
@@ -111,23 +116,23 @@
         </div>
 
         <div class="action-row">
-          <button class="btn" id="duplicateBtn">Duplicate Campaign</button>
+          <button class="btn btn-secondary" id="duplicateBtn"><i data-lucide="copy"></i>Duplicate campaign</button>
         </div>
       `;
 
       const linksWrap = document.getElementById("topLinksWrap");
       if (!topLinks.length) {
-        linksWrap.innerHTML = `<div class="empty-state">No link clicks recorded yet.</div>`;
+        linksWrap.innerHTML = `<div class="empty-state">No link clicks recorded yet. Clicks will appear here once recipients start following your links.</div>`;
       } else {
         linksWrap.innerHTML = `
-          <table>
+          <table class="table-cards">
             <thead><tr><th>URL</th><th>Total clicks</th><th>Unique clicks</th></tr></thead>
             <tbody>
               ${topLinks.map(l => `
                 <tr>
-                  <td style="word-break:break-all;"><a href="${l.link_url}" target="_blank" rel="noopener">${escapeHtml(l.link_url)}</a></td>
-                  <td>${formatNumber(l.total_clicks)}</td>
-                  <td>${formatNumber(l.unique_clicks)}</td>
+                  <td class="cell-title" style="word-break:break-all;"><a href="${l.link_url}" target="_blank" rel="noopener">${escapeHtml(l.link_url)}</a></td>
+                  <td data-label="Total clicks" class="tnum">${formatNumber(l.total_clicks)}</td>
+                  <td data-label="Unique clicks" class="tnum">${formatNumber(l.unique_clicks)}</td>
                 </tr>
               `).join("")}
             </tbody>
@@ -138,6 +143,7 @@
       document.getElementById("duplicateBtn").addEventListener("click", () => {
         window.location.href = `/compose.html?duplicate=${campaign.id}`;
       });
+      refreshIcons();
     })();
   </script>
 </body>

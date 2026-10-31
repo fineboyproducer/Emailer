@@ -99,6 +99,52 @@ function rate(numerator, denominator) {
   return numerator / denominator;
 }
 
+// The window immediately before the selected range, same length. "all"
+// has no previous period.
+function previousWindow(range) {
+  const now = new Date();
+  const DAY = 24 * 60 * 60 * 1000;
+  if (range === "today") {
+    const start = new Date(now);
+    start.setHours(0, 0, 0, 0);
+    return { from: new Date(start.getTime() - DAY), to: start };
+  }
+  if (range === "7d") return { from: new Date(now.getTime() - 14 * DAY), to: new Date(now.getTime() - 7 * DAY) };
+  if (range === "30d") return { from: new Date(now.getTime() - 60 * DAY), to: new Date(now.getTime() - 30 * DAY) };
+  return null;
+}
+
+// Aggregate delivery/engagement numbers for campaigns sent in [from, to).
+// Either bound may be null (unbounded).
+async function performanceBetween(from, to) {
+  const perf = (await pool.query(`
+    WITH rc AS (
+      SELECT id FROM campaigns
+      WHERE sent_at >= COALESCE($1::timestamptz, '-infinity'::timestamptz)
+        AND sent_at <  COALESCE($2::timestamptz, 'infinity'::timestamptz)
+    ),
+    recipients AS (SELECT * FROM campaign_recipients WHERE campaign_id IN (SELECT id FROM rc)),
+    events AS (SELECT * FROM email_events WHERE campaign_id IN (SELECT id FROM rc))
+    SELECT
+      (SELECT COUNT(*) FROM recipients WHERE provider_message_id IS NOT NULL)::int AS emails_sent,
+      (SELECT COUNT(DISTINCT campaign_recipient_id) FROM events WHERE event_type = 'delivered')::int AS delivered,
+      (SELECT COUNT(DISTINCT campaign_recipient_id) FROM events WHERE event_type = 'opened')::int AS opened_unique,
+      (SELECT COUNT(DISTINCT campaign_recipient_id) FROM events WHERE event_type = 'clicked')::int AS clicked_unique,
+      (SELECT COUNT(DISTINCT campaign_recipient_id) FROM events WHERE event_type = 'unsubscribed')::int AS unsubscribed_from_campaigns,
+      (SELECT COUNT(DISTINCT campaign_recipient_id) FROM events WHERE event_type = 'complained')::int AS complained
+  `, [from, to])).rows[0];
+
+  return {
+    emailsSent: perf.emails_sent,
+    delivered: perf.delivered,
+    deliveryRate: rate(perf.delivered, perf.emails_sent),
+    openRate: rate(perf.opened_unique, perf.delivered),
+    clickRate: rate(perf.clicked_unique, perf.delivered),
+    unsubscribeRate: rate(perf.unsubscribed_from_campaigns, perf.delivered),
+    complaintRate: rate(perf.complained, perf.delivered),
+  };
+}
+
 // GET /api/campaigns/dashboard?range=today|7d|30d|all - homepage stats
 router.get("/dashboard", requireLogin, async (req, res) => {
   const range = ["today", "7d", "30d"].includes(req.query.range) ? req.query.range : "all";
@@ -124,37 +170,18 @@ router.get("/dashboard", requireLogin, async (req, res) => {
     "SELECT id, subject, recipient_count, failed_count, status, sent_at FROM campaigns ORDER BY sent_at DESC LIMIT 5"
   )).rows;
 
-  // Email performance, aggregated across every campaign in range.
-  const perf = (await pool.query(`
-    WITH rc AS (
-      SELECT id FROM campaigns WHERE sent_at >= COALESCE($1::timestamptz, '-infinity'::timestamptz)
-    ),
-    recipients AS (
-      SELECT * FROM campaign_recipients WHERE campaign_id IN (SELECT id FROM rc)
-    ),
-    events AS (
-      SELECT * FROM email_events WHERE campaign_id IN (SELECT id FROM rc)
-    )
-    SELECT
-      (SELECT COUNT(*) FROM recipients WHERE provider_message_id IS NOT NULL)::int AS emails_sent,
-      (SELECT COUNT(DISTINCT campaign_recipient_id) FROM events WHERE event_type = 'delivered')::int AS delivered,
-      (SELECT COUNT(DISTINCT campaign_recipient_id) FROM events WHERE event_type = 'opened')::int AS opened_unique,
-      (SELECT COUNT(DISTINCT campaign_recipient_id) FROM events WHERE event_type = 'clicked')::int AS clicked_unique,
-      (SELECT COUNT(DISTINCT campaign_recipient_id) FROM events WHERE event_type = 'unsubscribed')::int AS unsubscribed_from_campaigns,
-      (SELECT COUNT(DISTINCT campaign_recipient_id) FROM events WHERE event_type = 'complained')::int AS complained
-  `, [since])).rows[0];
+  // Email performance, aggregated across every campaign in range - and
+  // across the equivalent previous period, when there is one (for the
+  // "vs previous period" comparison on the Overview cards).
+  const current = await performanceBetween(since, null);
+  const prevWindow = previousWindow(range);
+  const previous = prevWindow ? await performanceBetween(prevWindow.from, prevWindow.to) : null;
 
   res.json({
     range,
     totalContacts, active, unsubscribed, campaignsSent, segments, recentCampaigns,
-    performance: {
-      emailsSent: perf.emails_sent,
-      deliveryRate: rate(perf.delivered, perf.emails_sent),
-      openRate: rate(perf.opened_unique, perf.delivered),
-      clickRate: rate(perf.clicked_unique, perf.delivered),
-      unsubscribeRate: rate(perf.unsubscribed_from_campaigns, perf.delivered),
-      complaintRate: rate(perf.complained, perf.delivered),
-    },
+    performance: current,
+    previousPerformance: previous,
   });
 });
 

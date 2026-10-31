@@ -3,17 +3,22 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Campaigns · Email List</title>
-<script>try{document.documentElement.dataset.theme=localStorage.getItem("theme")||(matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light")}catch(e){}</script>
+<meta name="theme-color" content="#101114">
+<title>Campaigns · Emailer</title>
 <link rel="stylesheet" href="/css/style.css">
 </head>
 <body>
   <div class="container">
-    <h1>Campaigns</h1>
-    <p class="subtitle">Everything you've sent. Click a campaign for the full report.</p>
+    <div class="page-head">
+      <div>
+        <h1>Your Campaigns</h1>
+        <p class="subtitle">Everything you've sent. Open a campaign for its full report.</p>
+      </div>
+      <a class="btn" href="/compose.html"><i data-lucide="plus"></i>New campaign</a>
+    </div>
 
     <div class="card">
-      <div id="tableWrap"><div class="empty-state">Loading…</div></div>
+      <div id="tableWrap"><div class="skeleton sk-block" style="height:160px"></div></div>
     </div>
   </div>
 
@@ -23,40 +28,45 @@
 
     function statusLabel(c) {
       if (c.status === "sent") return `<span class="status-pill active">Sent</span>`;
-      if (c.status === "partial") return `<span class="status-pill" style="border-color:var(--danger);color:var(--danger);">Partial (${c.failed_count} failed)</span>`;
-      return `<span class="status-pill" style="border-color:var(--danger);color:var(--danger);">Failed</span>`;
+      if (c.status === "partial") return `<span class="status-pill" style="color:var(--danger)">Partial (${c.failed_count} failed)</span>`;
+      return `<span class="status-pill" style="color:var(--danger)">Failed</span>`;
     }
 
     (async () => {
-      const { campaigns } = await api("/api/campaigns");
       const wrap = document.getElementById("tableWrap");
+      let campaigns;
+      try { ({ campaigns } = await api("/api/campaigns")); }
+      catch (err) { wrap.innerHTML = `<div class="msg error">Couldn't load your campaigns: ${escapeHtml(err.message)}</div>`; return; }
       if (!campaigns.length) {
-        wrap.innerHTML = `<div class="empty-state">You haven't sent anything yet. <a href="/compose.html">Create your first email</a>.</div>`;
+        wrap.innerHTML = emptyState({ title: "Your first campaign starts here", body: "Write your message, choose who receives it and send. Results appear here as deliveries, opens and clicks arrive.", href: "/compose.html", label: "Create a campaign" });
+        refreshIcons();
         return;
       }
       wrap.innerHTML = `
-        <table>
+        <table class="table-cards">
           <thead><tr>
-            <th>Campaign</th><th>Recipients</th><th>Delivered</th><th>Open Rate</th><th>Click Rate</th><th>Unsubscribes</th><th>Date</th>
+            <th>Campaign</th><th>Status</th><th>Recipients</th><th>Delivered</th><th>Open rate</th><th>Click rate</th><th>Unsubscribes</th><th>Date</th>
           </tr></thead>
           <tbody>
             ${campaigns.map(c => `
               <tr style="cursor:pointer;" onclick="location.href='/campaign.html?id=${c.id}'">
-                <td>
-                  ${escapeHtml(c.subject)}
+                <td class="cell-title">
+                  <a href="/campaign.html?id=${c.id}" onclick="event.stopPropagation()">${escapeHtml(c.subject)}</a>
                   <div class="helptext" style="margin-top:2px;">${c.segment_names ? escapeHtml(c.segment_names) : "All active contacts"}</div>
                 </td>
-                <td>${formatNumber(c.recipient_count)}</td>
-                <td>${formatNumber(c.delivered)} <span class="helptext">(${formatRate(c.delivery_rate)})</span></td>
-                <td>${formatRate(c.open_rate)}</td>
-                <td>${formatRate(c.click_rate)}</td>
-                <td>${formatNumber(c.unsubscribed)}</td>
-                <td>${new Date(c.sent_at).toLocaleDateString()}</td>
+                <td data-label="Status">${statusLabel(c)}</td>
+                <td data-label="Recipients" class="tnum">${formatNumber(c.recipient_count)}</td>
+                <td data-label="Delivered" class="tnum">${formatNumber(c.delivered)} <span class="helptext">(${formatRate(c.delivery_rate)})</span></td>
+                <td data-label="Open rate" class="tnum">${formatRate(c.open_rate)}</td>
+                <td data-label="Click rate" class="tnum">${formatRate(c.click_rate)}</td>
+                <td data-label="Unsubscribes" class="tnum">${formatNumber(c.unsubscribed)}</td>
+                <td data-label="Date">${new Date(c.sent_at).toLocaleDateString()}</td>
               </tr>
             `).join("")}
           </tbody>
         </table>
       `;
+      refreshIcons();
     })();
   </script>
 </body>
