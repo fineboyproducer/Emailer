@@ -26,7 +26,10 @@ function refreshIcons() {
   if (iconTimer) return;
   iconTimer = requestAnimationFrame(() => {
     iconTimer = null;
-    if (window.lucide && document.querySelector("[data-lucide]")) window.lucide.createIcons();
+    // Only convert placeholders (<i data-lucide>). Lucide leaves a data-lucide
+    // attribute on the <svg> it creates, so matching on the attribute alone
+    // would re-render every icon on every DOM change, forever.
+    if (window.lucide && document.querySelector("i[data-lucide]")) window.lucide.createIcons();
   });
 }
 (function loadIcons() {
@@ -89,8 +92,9 @@ function renderNav(active) {
   document.body.prepend(skip);
   const wrap = document.createElement("div");
   wrap.append(topbar, main);
-  app.append(sidebar, wrap);
-  document.body.append(scrim);
+  // The scrim must live inside .app: .app is its own stacking context, so a
+  // body-level scrim would paint over the drawer and swallow taps on its links.
+  app.append(sidebar, wrap, scrim);
   if (container) main.append(container);
 
   const menuBtn = document.getElementById("menuBtn");
