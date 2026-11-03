@@ -333,3 +333,29 @@ are Lucide. Dark only - there is no light mode or theme toggle.
   text falls back to system fonts and icons are simply absent (the menu
   button has an inline fallback). To remove the dependency, self-host the
   font files and `lucide.min.js` under `public/`.
+
+---
+
+## Live masterclass: registration and automatic reminders
+
+The live page (`fineboyproducer.com.ng/live/`) saves each registration to the **website's** Supabase
+project, then tells this app. This app adds the person to your contacts (segment **Live Registrants**),
+emails a confirmation, and sends reminders before the live, all automatically.
+
+| Email | When |
+|---|---|
+| "You're in" confirmation | Within seconds of registering (or on the next 5-minute run if the page could not reach us) |
+| "Tomorrow at 8:00 PM WAT" | Thursday 8:00 PM WAT (any time up to 11:50 PM) |
+| "Tonight at 8:00 PM WAT" | Friday 7:00 PM WAT (up to 7:30) |
+| "We're live now" | Friday 8:00 PM WAT (up to 8:30) |
+
+**How a registration cannot get lost.** Two independent paths lead here:
+1. *Fast path:* the page posts the registration to `/api/public/live/register`. We answer "ok" only after it is saved in this app's own database.
+2. *Safety net:* every 5 minutes the scheduler calls `/api/public/live/cron`, which first pulls recent registrations from the website's project (through the read-only function in `supabase-site/`) and adds any we are missing, then sends what is due. If the page's request failed (server asleep, visitor left), the registration is picked up here within minutes. Importing the same registration twice changes nothing.
+
+More guarantees: nobody gets the same email twice (one row per person per reminder); failed sends retry up to 3 times; the server, not the visitor's clock, decides which Friday someone is registered for; someone registering after a live ends is put on the next Friday; opt-outs are never cleared; run summaries mask email addresses because this repository's Actions logs are public.
+
+Everything else (setup order, environment variables, monitoring queries, what to do when something breaks, rollback) is in **`docs/live-reminders-runbook.md`**. The website-side function is in **`supabase-site/README.md`**.
+
+### Tests
+`npm test` runs the unit tests (scheduling windows, validation, opt-outs, the export function). `test-e2e/` runs the whole flow against two separate databases with email faked: `cd test-e2e && npm install && npm test`.
