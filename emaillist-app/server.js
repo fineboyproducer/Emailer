@@ -10,6 +10,8 @@ const campaignsRoutes = require("./src/routes/campaigns");
 const segmentsRoutes = require("./src/routes/segments");
 const settingsRoutes = require("./src/routes/settings");
 const webhooksRoutes = require("./src/routes/webhooks");
+const liveRoutes = require("./src/routes/live");
+const { ensureLiveSchema } = require("./src/live/migrate");
 const { requireLogin } = require("./src/middleware/auth");
 const { configStatus } = require("./src/emailProvider");
 
@@ -43,7 +45,12 @@ if (!process.env.RESEND_WEBHOOK_SECRET) {
 }
 pool.query("SELECT 1")
   .then(() => console.log("Database: connected to Supabase Postgres."))
-  .catch((err) => console.error("WARNING: could not connect to the database at startup:", err.message));
+  .then(() => ensureLiveSchema())
+  .catch((err) => console.error("WARNING: could not connect to / prepare the database at startup:", err.message));
+
+if (!process.env.CRON_SECRET) {
+  console.warn("WARNING: CRON_SECRET is not set - the live reminder scheduler endpoint (/api/public/live/cron) will refuse every call until it's added.");
+}
 
 // The Resend webhook needs the RAW request body to verify its signature -
 // mounted here, before the global express.json() below, with its own
@@ -54,6 +61,11 @@ app.use("/api/webhooks", express.raw({ type: "application/json" }), webhooksRout
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// Public live-registration endpoints (the live page's sign-up form, the reminder scheduler
+// and the live-reminder unsubscribe). No admin login needed - see src/routes/live.js.
+app.use("/api/public/live", liveRoutes);
+
 app.use(
   session({
     secret: process.env.SESSION_SECRET || "insecure-dev-secret-change-me",

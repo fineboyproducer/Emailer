@@ -1,0 +1,61 @@
+name: Live reminders
+
+# The ONLY scheduler for live reminders. Every 5 minutes it wakes the Emailer (free hosting
+# sleeps) and asks it to (1) import any registrations it has not received from the website and
+# (2) send whatever reminders are due. It sends no email itself.
+#
+# Repeated, late or overlapping runs are safe: every reminder is claimed in the database before
+# it is sent, and every import is keyed by (email, event date).
+#
+# Repository secrets (Settings > Secrets and variables > Actions):
+#   EMAILER_URL  https://emailer-0w2b.onrender.com   (no trailing slash)
+#   CRON_SECRET  the same value as CRON_SECRET in Render
+#
+# The run goes RED (GitHub emails you) if the Emailer is unreachable, rejects the secret,
+# fails to send, or cannot read the website's registrations. The response printed below never
+# contains full email addresses, because this repository's logs are public.
+#
+# GitHub can start scheduled runs several minutes late and pauses them after 60 days without
+# repository activity (re-enable under the Actions tab). The reminder windows tolerate
+# delays of up to 30 minutes.
+#
+# NOTE: GitHub only runs scheduled workflows from the default branch, so this starts after merge.
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: live-reminders
+  cancel-in-progress: false
+
+jobs:
+  tick:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - name: Trigger a reminder run
+        env:
+          EMAILER_URL: ${{ secrets.EMAILER_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          if [ -z "$EMAILER_URL" ] || [ -z "$CRON_SECRET" ]; then
+            echo "Add the EMAILER_URL and CRON_SECRET repository secrets first." >&2
+            exit 1
+          fi
+          code=$(curl --silent --show-error \
+            --retry 3 --retry-delay 20 --retry-all-errors --max-time 150 \
+            -o response.json -w '%{http_code}' \
+            -X POST "${EMAILER_URL%/}/api/public/live/cron" \
+            -H "x-cron-secret: $CRON_SECRET")
+          echo "HTTP $code"
+          jq . response.json 2>/dev/null || cat response.json
+          if [ "$code" -ge 400 ]; then
+            echo "The Emailer answered HTTP $code." >&2
+            exit 1
+          fi
+          if ! jq -e '.ok == true and .healthy == true' response.json >/dev/null; then
+            echo "The run reported a problem (see the response above)." >&2
+            exit 1
+          fi
