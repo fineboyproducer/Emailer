@@ -130,7 +130,8 @@ test("email: renders for every kind, escapes names, carries the unsubscribe link
     assert.ok(m.subject.length > 0);
     assert.ok(!m.html.includes("<script>"), "name must be escaped");
     assert.ok(m.html.includes(unsub) && m.text.includes(unsub));
-    assert.ok(m.html.includes("https://fineboyproducer.com.ng/live/"));
+    if (step.kind === "confirm") assert.ok(m.html.includes("https://fineboyproducer.com.ng/blueprint/") && m.text.includes("https://fineboyproducer.com.ng/blueprint/"));
+    else assert.ok(m.html.includes("https://fineboyproducer.com.ng/live/"));
     assert.ok(m.text.includes("8:00 PM WAT"));
   }
   assert.match(renderLiveEmail("24h", { first_name: "Ada" }, session, c, unsub).subject, /^Tomorrow at 8:00 PM WAT/);

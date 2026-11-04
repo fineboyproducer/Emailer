@@ -22,7 +22,7 @@ const COPY = {
     headline: "You're in.",
     lead: ctx.join
       ? "You're registered for the live session. Your Google Meet link is below. Save it, or tap Add to calendar so it is on your phone."
-      : "You're registered for the live session. Tap Add to calendar so it is saved on your phone. Your Google Meet link comes in your reminder emails.",
+      : "You're registered for the live session. Your Google Meet link will be emailed to you on or before the day. Tap Add to calendar so the live is saved on your phone.",
   }),
   "24h": (ctx) => ({
     subject: `Tomorrow at ${ctx.timeLabel}: ${ctx.eventName}`,
@@ -76,6 +76,14 @@ function renderLiveEmail(kind, reg, session, cfg, unsubscribeUrl, opts = {}) {
   const btn = (href, label, primary) =>
     `<a href="${esc(href)}" style="display:inline-block;padding:15px 26px;margin:0 10px 10px 0;border-radius:4px;font:700 14px Arial,Helvetica,sans-serif;letter-spacing:.08em;text-transform:uppercase;text-decoration:none;${primary ? "background:#e6b64b;color:#0a0a0a;border:1px solid #e6b64b;" : "background:transparent;color:#e6b64b;border:1px solid #e6b64b;"}">${esc(label)}</a>`;
 
+  // Join button whenever the link may be shown; the confirmation also points to the Blueprint (the next step after
+  // registering, for anyone whose browser did not take them there); other reminders offer the live page as a fallback.
+  const buttons = join
+    ? btn(meetUrl, "Join on Google Meet", true) + btn(calendar, "Add to calendar", false)
+    : kind === "confirm"
+      ? btn(calendar, "Add to calendar", true) + btn(cfg.blueprintUrl, "Get the 100k Streams Blueprint", false)
+      : btn(calendar, "Add to calendar", true) + btn(cfg.pageUrl, "Open the live page", false);
+
   const html = `<!doctype html><html><body style="margin:0;padding:0;background:#050505;">
 <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#050505;"><tr><td align="center" style="padding:32px 16px;">
 <table role="presentation" width="560" cellspacing="0" cellpadding="0" style="max-width:560px;width:100%;">
@@ -85,12 +93,12 @@ function renderLiveEmail(kind, reg, session, cfg, unsubscribeUrl, opts = {}) {
 <tr><td style="font:400 17px/1.6 Arial,Helvetica,sans-serif;color:#f3f1ec;padding-bottom:22px;">${esc(copy.lead)}</td></tr>
 <tr><td style="border-top:1px solid #3a3323;border-bottom:1px solid #3a3323;padding:18px 0;font:400 16px/1.6 Arial,Helvetica,sans-serif;color:#f3f1ec;">
 <strong style="color:#e6b64b;">${esc(cfg.eventName)}</strong><br>${esc(when)}<br>Live on Google Meet</td></tr>
-<tr><td style="padding:24px 0 8px;">${join ? btn(meetUrl, "Join on Google Meet", true) + btn(calendar, "Add to calendar", false) : btn(calendar, "Add to calendar", true) + btn(cfg.pageUrl, "Open the live page", false)}</td></tr>
+<tr><td style="padding:24px 0 8px;">${buttons}</td></tr>
 <tr><td style="font:400 15px/1.6 Arial,Helvetica,sans-serif;color:#9b978e;padding-top:14px;">Strategy before streams.<br>Fineboy Producer</td></tr>
 <tr><td style="font:400 12px/1.6 Arial,Helvetica,sans-serif;color:#77736b;padding-top:28px;">You're getting this because you registered for this live at fineboyproducer.com.ng. <a href="${esc(unsubscribeUrl)}" style="color:#9b978e;">Unsubscribe from live reminders</a></td></tr>
 </table></td></tr></table></body></html>`;
 
-  const text = `${copy.headline}\n\nHi ${name},\n\n${copy.lead}\n\n${cfg.eventName}\n${when}\nLive on Google Meet\n\n${join ? `Join on Google Meet: ${meetUrl}\n` : ""}Add to calendar: ${calendar}\nLive page: ${cfg.pageUrl}\n\nStrategy before streams.\nFineboy Producer\n\nYou're getting this because you registered for this live at fineboyproducer.com.ng.\nUnsubscribe from live reminders: ${unsubscribeUrl}\n`;
+  const text = `${copy.headline}\n\nHi ${name},\n\n${copy.lead}\n\n${cfg.eventName}\n${when}\nLive on Google Meet\n\n${join ? `Join on Google Meet: ${meetUrl}\n` : ""}Add to calendar: ${calendar}\n${kind === "confirm" ? `Get the 100k Streams Blueprint: ${cfg.blueprintUrl}` : `Live page: ${cfg.pageUrl}`}\n\nStrategy before streams.\nFineboy Producer\n\nYou're getting this because you registered for this live at fineboyproducer.com.ng.\nUnsubscribe from live reminders: ${unsubscribeUrl}\n`;
 
   return { subject: copy.subject, html, text };
 }

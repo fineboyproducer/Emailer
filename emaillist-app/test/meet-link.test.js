@@ -61,7 +61,7 @@ test("meet link: with no link set, nothing is rendered about one and the page li
     const m = mail(kind, "", "2026-11-06T19:00:00");
     assert.ok(!m.html.includes("meet.google.com") && !m.text.includes("meet.google.com"), kind);
     assert.ok(!m.html.includes(">Join on Google Meet<"));
-    assert.ok(m.html.includes("https://fineboyproducer.com.ng/live/"));
+    assert.ok(m.html.includes(kind === "confirm" ? "https://fineboyproducer.com.ng/blueprint/" : "https://fineboyproducer.com.ng/live/"), kind);
   }
   assert.ok(!mail("1h", "https://evil.example/x", "2026-11-06T18:00:00").html.includes("evil.example"));
 });
@@ -71,4 +71,15 @@ test("meet link: the link is never put in a place the registrant did not receive
   const m = mail("1h", "https://meet.google.com/abc-defg-hij?x=1&y=2", "2026-11-06T18:00:00");
   assert.ok(m.html.includes("x=1&amp;y=2"), "ampersand escaped in the HTML attribute");
   assert.ok(m.html.includes(UNSUB) && m.text.includes(UNSUB));
+});
+
+test("confirmation: says when the Meet link arrives, and points to the Blueprint as the next step", () => {
+  for (const meetUrl of ["", MEET]) {
+    const m = mail("confirm", meetUrl, "2026-11-02T10:00:00");
+    assert.match(m.text, /Your Google Meet link will be emailed to you on or before the day/);
+    assert.ok(m.html.includes(">Get the 100k Streams Blueprint<") && m.html.includes('href="https://fineboyproducer.com.ng/blueprint/"'));
+    assert.ok(m.text.includes("Get the 100k Streams Blueprint: https://fineboyproducer.com.ng/blueprint/"));
+  }
+  // reminders do not repeat the Blueprint pitch
+  assert.ok(!mail("24h", MEET, "2026-11-05T20:05:00").html.includes("Blueprint"));
 });
