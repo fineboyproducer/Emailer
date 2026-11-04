@@ -48,6 +48,24 @@ Optional: `LIVE_EMAIL_KINDS` (default `confirm,24h,1h,live`), `LIVE_RECONCILE_DA
 
 **Databases.** Emailer project: `sql/02_live_reminders.sql` creates `live_registrations` and `live_reminder_log` (idempotent; also runs at startup; nothing existing is altered). Website project: unchanged.
 
+## 2b. The Google Meet link (private)
+
+The Meet link is **not on the website**. It lives in the Emailer's database (`live_meet_links`, one row per Friday) and goes out only inside emails to registered people:
+- **Reminder emails** (Thursday "tomorrow", Friday "tonight", "we're live now"): a **Join on Google Meet** button, plus an **Add to calendar** button whose calendar entry holds the link.
+- **Confirmation**: the Join button only if it is sent within 24 hours of the live (a late registrant); an earlier confirmation carries the link inside its **Add to calendar** button.
+- If no link is set for a Friday, the emails still go out with the live-page link and the run's response shows a `warnings` entry (and Render logs a `[live] WARNING`).
+
+**Each week** (in the Emailer's Supabase SQL editor; do it as early in the week as you can, and before Thursday 8 PM at the latest, so the calendar buttons already carry it):
+
+```sql
+insert into live_meet_links (event_date, url)
+values ('2026-11-13', 'https://meet.google.com/xxx-xxxx-xxx')
+on conflict (event_date) do update set url = excluded.url;
+```
+Only `https://meet.google.com/...` addresses are accepted. Check it is registered without revealing it: `/api/public/live/status` shows `"meetLinkSet": true`.
+
+Use a **fresh link each week**, and keep Google Meet's host controls on (so people outside the list must be admitted): an email can be forwarded.
+
 ## 3. Before going live: checks on the website database
 
 Run in the website project's SQL editor. These are reads.

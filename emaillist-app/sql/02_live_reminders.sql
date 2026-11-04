@@ -36,3 +36,11 @@ create table if not exists live_reminder_log (
   unique (registration_id, kind)
 );
 create index if not exists idx_live_reminder_log_status on live_reminder_log (status);
+
+-- The Google Meet link for each Friday. It lives ONLY here, never on the public website, and goes out
+-- only inside emails to registered people. Add a new one each week (see docs/live-reminders-runbook.md).
+create table if not exists live_meet_links (
+  event_date date primary key,
+  url        text not null check (url ~* '^https://meet\.google\.com/[a-z0-9-]+(\?[^[:space:]]*)?$'),
+  created_at timestamptz not null default now()
+);

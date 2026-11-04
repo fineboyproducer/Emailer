@@ -39,8 +39,12 @@ async function liveStatus(now = Date.now()) {
       WHERE r.event_date = $1 AND l.status = 'failed' ORDER BY l.updated_at DESC LIMIT 20`, [d])).rows
     .map((f) => ({ ...f, email: mask(f.email), error: f.error ? maskIn(f.error) : f.error, gave_up: f.attempts >= 3 }));
 
+  // Whether this Friday's Meet link has been added. The link itself is never shown here.
+  const meetLinkSet = (await pool.query("SELECT 1 FROM live_meet_links WHERE event_date = $1", [d])).rows.length > 0;
+
   return {
     ok: true,
+    meetLinkSet,
     nextLive: { date: d, startsAt: new Date(session.startMs).toISOString(), label: whenLabel(session) },
     registrations: regs,
     reminders: byKind,
