@@ -272,6 +272,9 @@ const until = async (fn, ms = 6000) => { const t = Date.now(); while (Date.now()
   let s = await tick(T(-25 * 60)); assert.equal(s.sent, 0); step("Test D: 25h before -> nothing due");
   restMode = "fail";   // the website export is down during the 24h reminder: known registrants must still be reminded
   s = await tick(T(-24 * 60 + 1)); assert.equal(s.sent, 2); assert.equal(s.healthy, false);
+  assert.equal(s.warnings.length, 1); assert.match(s.warnings[0], new RegExp("No Google Meet link is set for " + S.dateKey));
+  assert.ok(sent.slice(base).every((m) => !m.html.includes("meet.google.com") && !m.text.includes("meet.google.com")));
+  step("Meet link: none set yet -> the run warns (naming the Friday) and no email mentions a link");
   assert.deepEqual(sent.slice(base).map((m) => m.to).sort(), ["cy@example.com", "fay@example.com"]);
   assert.ok(sent.slice(base).every((m) => /^Tomorrow at 8:00 PM WAT/.test(m.subject) && m.html.includes("Friday")));
   step("Test G: Thursday 8:00 PM WAT -> 'Tomorrow at 8:00 PM WAT' to the two opted-in registrants only (opted-out excluded)");
@@ -283,8 +286,21 @@ const until = async (fn, ms = 6000) => { const t = Date.now(); while (Date.now()
   s = await tick(T(-60 + 7)); assert.equal(s.sent, 1); assert.match(sent.at(-1).subject, /^Tonight at 8:00 PM WAT/);
   assert.equal((await q("select count(*)::int n from live_reminder_log where kind='1h' and status='sent'"))[0].n, 2); step("Test E: the failed reminder is retried on the next run and delivered exactly once");
   // permanent rejection of one address at 'live' time: bounded retries
+  const MEET = "https://meet.google.com/abc-defg-hij";
+  await q("insert into live_meet_links (event_date, url) values ($1, $2)", [S.dateKey, MEET]);
   failEmails = new Set(["cy@example.com"]);
+  const beforeLive = sent.length;
   s = await tick(T(1)); assert.equal(s.sent, 1); assert.equal(s.failed, 1);
+  assert.deepEqual(s.warnings, []);
+  const liveMail = sent.slice(beforeLive).find((m) => m.to === "fay@example.com");
+  assert.match(liveMail.subject, /^We're live now/); assert.ok(liveMail.html.includes(`href="${MEET}"`) && liveMail.html.includes(">Join on Google Meet<") && liveMail.text.includes(MEET));
+  step("Meet link: once added, the 'live now' email carries a Join button and the link, and the warning clears");
+  const stNow = await require(path.join(APP, "src/live/status.js")).liveStatus(S.startMs - 3600000);   // the same function /status serves, at the test's pretend time
+  assert.equal(stNow.meetLinkSet, true); assert.ok(!JSON.stringify(stNow).includes("meet.google.com"));
+  step("Meet link: /status says it is set but never shows the link");
+  const dryOut = await (await fetch(`${BASE}/cron?dry_run=1`, { method: "POST", headers: { "x-cron-secret": CRON } })).text();
+  assert.ok(!dryOut.includes("meet.google.com"));
+  step("Meet link: not in the scheduler's output either (that output is printed on a public GitHub page)");
   s = await tick(T(6)); assert.equal(s.failed, 1);
   s = await tick(T(11)); assert.equal(s.failed, 1);
   s = await tick(T(16)); assert.equal(s.failed, 0); assert.equal(s.sent, 0);

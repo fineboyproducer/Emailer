@@ -110,9 +110,19 @@ function unsubscribeUrl(cfg, token) {
   return `${cfg.appUrl}/api/public/live/unsubscribe?token=${encodeURIComponent(token)}`;
 }
 
-async function sendJob(cfg, job) {
+// This Friday's Google Meet link, from the private live_meet_links table ('' if none has been added).
+async function meetUrlFor(dateKey, cache) {
+  if (cache && cache.has(dateKey)) return cache.get(dateKey);
+  const { rows } = await pool.query("SELECT url FROM live_meet_links WHERE event_date = $1", [dateKey]);
+  const url = rows[0] ? rows[0].url : "";
+  if (cache) cache.set(dateKey, url);
+  return url;
+}
+
+async function sendJob(cfg, job, cache, now = Date.now()) {
   const url = unsubscribeUrl(cfg, job.reg.unsubscribe_token);
-  const { subject, html, text } = renderLiveEmail(job.step.kind, job.reg, job.session, cfg, url);
+  const meetUrl = await meetUrlFor(job.reg.event_date, cache);
+  const { subject, html, text } = renderLiveEmail(job.step.kind, job.reg, job.session, cfg, url, { meetUrl, nowMs: now });
   return sendEmail({
     to: job.reg.email,
     subject, html, text,
@@ -177,7 +187,16 @@ async function runReminders({ dryRun = false, now = Date.now() } = {}) {
     const logs = await loadLogs(regs.filter((r) => typeof r.id === "number" || /^\d+$/.test(String(r.id))).map((r) => r.id));
     const jobs = plan(now, regs, logs, cfg).slice(0, MAX_JOBS_PER_RUN);
 
-    const summary = { ok: true, healthy: true, dryRun, registrations: regs.length, due: jobs.length, sent: 0, failed: 0, skipped: 0, errors: [], reconcile: stripWouldAdd(rec) };
+    // A reminder that is due for a Friday with no Meet link on file would go out without one. Say so loudly
+    // (a plain warning, not a failure: the emails are still useful), so the link can be added in time.
+    const meetCache = new Map();
+    const warnings = [];
+    for (const d of [...new Set(jobs.filter((j) => j.step.kind !== "confirm").map((j) => j.reg.event_date))]) {
+      if (!(await meetUrlFor(d, meetCache))) warnings.push(`No Google Meet link is set for ${d}: reminders for that Friday are going out without it.`);
+    }
+    if (warnings.length) console.warn("[live] WARNING:", warnings.join(" "));
+
+    const summary = { ok: true, healthy: true, dryRun, registrations: regs.length, due: jobs.length, sent: 0, failed: 0, skipped: 0, errors: [], warnings, reconcile: stripWouldAdd(rec) };
     if (rec.enabled && !rec.ok) summary.healthy = false;
     if (dryRun) return { ...summary, would_send: jobs.map((j) => `${j.step.kind} -> ${mask(j.reg.email)}`) };
 
@@ -186,7 +205,7 @@ async function runReminders({ dryRun = false, now = Date.now() } = {}) {
       if (!logId) { summary.skipped++; continue; }
 
       let result;
-      try { result = await sendJob(cfg, job); }
+      try { result = await sendJob(cfg, job, meetCache, now); }
       catch (err) { result = { ok: false, error: (err && err.message) || String(err) }; }
       await finish(logId, result);
 

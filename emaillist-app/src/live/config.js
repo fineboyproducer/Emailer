@@ -25,6 +25,7 @@ function liveConfig(env = process.env) {
     hourWat: num(env.LIVE_HOUR_WAT, 20),      // 8:00 PM WAT
     durationMin: num(env.LIVE_DURATION_MIN, 60),
     pageUrl: env.LIVE_PAGE_URL || "https://fineboyproducer.com.ng/live/",
+    blueprintUrl: env.LIVE_BLUEPRINT_URL || "https://fineboyproducer.com.ng/blueprint/",
     segmentName: env.LIVE_SEGMENT_NAME || "Live Registrants",
     allowedOrigins: list(env.LIVE_ALLOWED_ORIGINS, "https://fineboyproducer.com.ng,https://www.fineboyproducer.com.ng"),
     emailKinds: list(env.LIVE_EMAIL_KINDS, "confirm,24h,1h,live"),
