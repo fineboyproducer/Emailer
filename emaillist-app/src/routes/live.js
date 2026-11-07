@@ -9,6 +9,7 @@ const { cleanRegistration, registerLive } = require("../live/register");
 const { runReminders, sendConfirmationNow } = require("../live/reminders");
 const { esc } = require("../live/templates");
 const { liveStatus } = require("../live/status");
+const { runSequence, sendTest, sequenceStatus } = require("../sequence/engine");
 
 // Public endpoints for the live registration page and the reminder scheduler.
 // Mounted at /api/public/live (see server.js). None of these need the admin login.
@@ -80,6 +81,10 @@ router.post("/cron", async (req, res) => {
   try {
     const dryRun = req.query.dry_run === "1" || req.query.dry_run === "true";
     const summary = await runReminders({ dryRun });
+    // The follow-up sequence rides on the same timer. It can never stop the reminders, and a problem
+    // in it is reported under "sequence" without turning the reminder run red.
+    try { summary.sequence = await runSequence({ dryRun }); }
+    catch (err) { console.error("[sequence] run failed:", err.message); summary.sequence = { ok: false, error: err.message }; }
     res.status(summary.ok ? 200 : 500).json(summary);
   } catch (err) {
     console.error("[live] cron run failed:", err.message);
@@ -97,6 +102,61 @@ router.get("/status", async (req, res) => {
   } catch (err) {
     console.error("[live] status failed:", err.message);
     res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+// GET /api/public/live/sequence/status   header: x-cron-secret - read-only picture of the follow-up sequence
+router.get("/sequence/status", async (req, res) => {
+  const secret = liveConfig().cronSecret;
+  if (!secret) return res.status(500).json({ ok: false, error: "CRON_SECRET is not set on the server." });
+  if (!safeEqual(req.get("x-cron-secret") || "", secret)) return res.status(401).json({ ok: false, error: "unauthorized" });
+  try { res.json(await sequenceStatus()); }
+  catch (err) { console.error("[sequence] status failed:", err.message); res.status(500).json({ ok: false, error: err.message }); }
+});
+
+// POST /api/public/live/sequence/test?step=B1&name=Ada   header: x-cron-secret
+// Sends one email to SEQ_TEST_EMAIL (and only that address) so each email can be checked on a phone.
+router.post("/sequence/test", async (req, res) => {
+  const secret = liveConfig().cronSecret;
+  if (!secret) return res.status(500).json({ ok: false, error: "CRON_SECRET is not set on the server." });
+  if (!safeEqual(req.get("x-cron-secret") || "", secret)) return res.status(401).json({ ok: false, error: "unauthorized" });
+  try {
+    const out = await sendTest(req.query.step, String(req.query.name || "").slice(0, 60));
+    res.status(out.ok ? 200 : 400).json(out);
+  } catch (err) {
+    console.error("[sequence] test send failed:", err.message);
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+// ---- Stop the follow-up emails (the unsubscribe link in every sequence email) ----
+// Like the reminder unsubscribe: GET only shows a confirm button (mail scanners open every link),
+// the button and mail apps' one-click header POST to do it. It unsubscribes the contact from ALL emails
+// from this list, so it also stops campaigns.
+router.get("/stop-emails", async (req, res) => {
+  try {
+    const contact = await findContactByToken(req.query.token);
+    if (!contact) return res.status(404).type("html").send(page("This link isn't valid.", "Open the unsubscribe link in your email again. If it still doesn't work, message @fineboyproducer_ on Instagram and we'll remove you."));
+    res.type("html").send(page("Stop these emails?", "You'll stop getting emails from Fineboy Producer.",
+      `<form method="post" action="?token=${encodeURIComponent(String(req.query.token))}"><button type="submit">Unsubscribe</button></form>`));
+  } catch (err) {
+    console.error("[sequence] stop-emails check failed:", err.message);
+    res.status(500).type("html").send(page("Something went wrong.", "Please try again in a moment."));
+  }
+});
+
+router.post("/stop-emails", async (req, res) => {
+  const token = req.query.token || (req.body && req.body.token);
+  try {
+    const contact = await findContactByToken(token);
+    if (!contact) return res.status(404).type("html").send(page("This link isn't valid.", "Open the unsubscribe link in your email again."));
+    await pool.query("UPDATE contacts SET status = 'unsubscribed' WHERE id = $1", [contact.id]);
+    await pool.query("UPDATE live_registrations SET unsubscribed_at = COALESCE(unsubscribed_at, now()) WHERE contact_id = $1", [contact.id]);
+    if (req.body && req.body["List-Unsubscribe"]) return res.status(200).send("Unsubscribed.");
+    res.type("html").send(page("You're unsubscribed.", "You won't get any more emails from Fineboy Producer."));
+  } catch (err) {
+    console.error("[sequence] stop-emails failed:", err.message);
+    res.status(500).type("html").send(page("Something went wrong.", "Please try again in a moment."));
   }
 });
 

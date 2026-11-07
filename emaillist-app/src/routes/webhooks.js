@@ -1,6 +1,8 @@
 const express = require("express");
 const crypto = require("crypto");
 const { pool } = require("../db");
+const { sequenceConfig } = require("../sequence/config");
+const { verifyPaystackSignature, handlePaystackEvent } = require("../sequence/purchases");
 
 const router = express.Router();
 
@@ -168,6 +170,30 @@ router.post("/resend", async (req, res) => {
     // 500 so Resend retries this delivery - our unique index makes a
     // retry safe even if part of this handler already ran.
     res.status(500).json({ error: "Failed to process event." });
+  }
+});
+
+// Paystack tells us about every successful payment so the follow-up sequence knows who has bought.
+// Set the webhook URL in the Paystack dashboard to https://<this app>/api/webhooks/paystack and add your
+// secret key as PAYSTACK_SECRET_KEY here. Without the key this endpoint refuses everything.
+router.post("/paystack", async (req, res) => {
+  const cfg = sequenceConfig();
+  if (!cfg.paystackSecret) return res.status(503).json({ ok: false, error: "PAYSTACK_SECRET_KEY is not set." });
+  if (!Buffer.isBuffer(req.body)) return res.status(400).json({ ok: false, error: "expected a raw JSON body" });
+  if (!verifyPaystackSignature(req.body, req.get("x-paystack-signature"), cfg.paystackSecret)) {
+    return res.status(401).json({ ok: false, error: "bad signature" });
+  }
+  let event;
+  try { event = JSON.parse(req.body.toString("utf8")); }
+  catch { return res.status(400).json({ ok: false, error: "invalid JSON" }); }
+  try {
+    const result = await handlePaystackEvent(event, cfg);
+    if (result.recorded) console.log(`[paystack] recorded ${result.recorded} purchase${result.created ? "" : " (already known)"}`);
+    res.json({ ok: true, ...result });
+  } catch (err) {
+    // 500 makes Paystack retry later, which is what we want if the database was briefly unavailable.
+    console.error("[paystack] webhook handling failed:", err.message);
+    res.status(500).json({ ok: false, error: "could not record" });
   }
 });
 
