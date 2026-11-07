@@ -2,6 +2,6 @@
   "name": "emaillist-app-e2e",
   "private": true,
   "description": "End-to-end test for the live registration handoff and reminders. Kept apart from the app so Render never installs it.",
-  "scripts": { "test": "node run.js" },
+  "scripts": { "test": "node run.js && node sequence.js" },
   "devDependencies": { "@electric-sql/pglite": "^0.2.17" }
 }

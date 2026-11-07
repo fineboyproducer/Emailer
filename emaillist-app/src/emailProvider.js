@@ -36,7 +36,7 @@ function configStatus() {
 
 // `text` and `headers` are optional (campaigns don't use them). The live reminders pass a
 // plain-text alternative and List-Unsubscribe headers so mail apps show a one-click unsubscribe.
-async function sendEmail({ to, subject, html, text, headers, fromEmail, fromName }) {
+async function sendEmail({ to, subject, html, text, headers, fromEmail, fromName, replyTo }) {
   const apiKey = process.env.RESEND_API_KEY;
 
   if (!apiKey) {
@@ -67,6 +67,7 @@ async function sendEmail({ to, subject, html, text, headers, fromEmail, fromName
       from, to, subject, html,
       ...(text ? { text } : {}),
       ...(headers ? { headers } : {}),
+      ...(replyTo ? { replyTo } : {}),
     });
   } catch (err) {
     // A thrown exception means the request never got a proper Resend
