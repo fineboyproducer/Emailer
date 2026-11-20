@@ -232,7 +232,7 @@ The **Artist Growth Bundle** is four tools, built to take you from guessing to a
 
 Regular price ₦400,000. Right now it's **₦27,750**.
 
-[Get the bundle →](https://fineboyproducer.com.ng/access/?utm_source=email&utm_campaign=u1)
+[Get the bundle →](https://fineboyproducer.com.ng/bundle/?utm_source=email&utm_campaign=u1)
 
 — Fineboy
 
@@ -260,7 +260,7 @@ It is one of four tools in the Artist Growth Bundle, with the Secret Playbook, t
 
 Your next release deserves a plan for the 30 days that count.
 
-[Get the bundle →](https://fineboyproducer.com.ng/access/?utm_source=email&utm_campaign=u2)
+[Get the bundle →](https://fineboyproducer.com.ng/bundle/?utm_source=email&utm_campaign=u2)
 
 — Fineboy
 
@@ -292,7 +292,7 @@ Then the **community** gives you people to ask, compare and grow with.
 
 Imagine opening one folder on a Tuesday night, knowing exactly what the next step is. That is what this is.
 
-[Get the Artist Growth Bundle — ₦27,750 →](https://fineboyproducer.com.ng/access/?utm_source=email&utm_campaign=u3)
+[Get the Artist Growth Bundle — ₦27,750 →](https://fineboyproducer.com.ng/bundle/?utm_source=email&utm_campaign=u3)
 
 — Fineboy
 
@@ -316,7 +316,7 @@ If you want both, the two work together. Neither one waters down the other.
 
 What I don't want is for you to read all this, agree with it, and still release your next song the same way you released the last one.
 
-[Get the bundle — ₦27,750 →](https://fineboyproducer.com.ng/access/?utm_source=email&utm_campaign=u4)
+[Get the bundle — ₦27,750 →](https://fineboyproducer.com.ng/bundle/?utm_source=email&utm_campaign=u4)
 
 Tomorrow I'm going to tell you about something different. It's not a PDF. It's me.
 
@@ -474,7 +474,7 @@ There is no wrong answer. I just want to know what you're facing, so I can send 
 If you already know what you need:
 
 - Want the strategy written down? [The Blueprint, ₦35,000](https://fineboyproducer.com.ng/blueprint/?utm_source=email&utm_campaign=n2)
-- Want the tools and the community? [The Artist Growth Bundle, ₦27,750](https://fineboyproducer.com.ng/access/?utm_source=email&utm_campaign=n2)
+- Want the tools and the community? [The Artist Growth Bundle, ₦27,750](https://fineboyproducer.com.ng/bundle/?utm_source=email&utm_campaign=n2)
 - Want me to look at your career? [The Artist Growth Intensive, ₦99,700](https://fineboyproducer.com.ng/work%20with%20me/?utm_source=email&utm_campaign=n2)
 
 But really, just reply.
@@ -552,7 +552,7 @@ Once your Clarity is sorted, the next place artists get stuck is the weeks right
 
 ₦27,750.
 
-[See the Artist Growth Bundle →](https://fineboyproducer.com.ng/access/?utm_source=email&utm_campaign=c2)
+[See the Artist Growth Bundle →](https://fineboyproducer.com.ng/bundle/?utm_source=email&utm_campaign=c2)
 
 — Fineboy
 

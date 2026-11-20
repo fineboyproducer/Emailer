@@ -16,7 +16,7 @@ function verifyPaystackSignature(rawBody, signature, secret) {
 // (the Release Checklist, beats, a different price) is ignored rather than guessed at.
 function productForAmount(amountKobo, currency, cfg) {
   if (currency && String(currency).toUpperCase() !== "NGN") return null;
-  for (const [product, kobo] of Object.entries(cfg.amounts)) if (Number(amountKobo) === kobo) return product;
+  for (const [product, kobo] of Object.entries(cfg.amounts)) if (Number(amountKobo) === kobo) return product.split("+")[0];
   return null;
 }
 

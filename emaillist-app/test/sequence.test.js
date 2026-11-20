@@ -145,7 +145,7 @@ test("config: off unless explicitly enabled; amounts parse to kobo", () => {
   assert.equal(sequenceConfig({}).enabled, false);
   assert.equal(sequenceConfig({ SEQ_ENABLED: "true" }).enabled, true);
   assert.equal(sequenceConfig({ SEQ_ENABLED: "false" }).enabled, false);
-  assert.deepEqual(parseAmounts(""), { blueprint: 3500000, bundle: 2775000, agi: 9970000 });
+  assert.deepEqual(parseAmounts(""), { blueprint: 3500000, bundle: 2775000, "bundle+pack": 5275000, agi: 9970000 });
   assert.deepEqual(parseAmounts("agi:120000,junk:5"), { agi: 12000000 });
   assert.equal(sequenceConfig({}).dailyCap, 80);
 });
@@ -162,6 +162,7 @@ test("paystack: signature check and product mapping", () => {
   assert.equal(productForAmount(3500000, "NGN", cfg), "blueprint");
   assert.equal(productForAmount(2775000, "NGN", cfg), "bundle");
   assert.equal(productForAmount(9970000, "NGN", cfg), "agi");
+  assert.equal(productForAmount(5275000, "NGN", cfg), "bundle", "bundle + Afrobeat pack counts as a bundle purchase");
   assert.equal(productForAmount(550000, "NGN", cfg), null, "the Release Checklist is not one of the three");
   assert.equal(productForAmount(3500000, "USD", cfg), null);
 });

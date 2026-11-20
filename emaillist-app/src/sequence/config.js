@@ -6,13 +6,14 @@ function num(value, fallback) {
   return Number.isFinite(n) ? n : fallback;
 }
 
-// "blueprint:35000,bundle:27750,agi:99700" (naira) -> { blueprint: 3500000, ... } (kobo)
+// "blueprint:35000,bundle:27750,bundle+pack:52750,agi:99700" (naira) -> { blueprint: 3500000, ... } (kobo)
 function parseAmounts(raw) {
   const out = {};
-  for (const part of String(raw || "blueprint:35000,bundle:27750,agi:99700").split(",")) {
+  for (const part of String(raw || "blueprint:35000,bundle:27750,bundle+pack:52750,agi:99700").split(",")) {
     const [product, naira] = part.split(":").map((s) => s.trim());
     const n = Number(naira);
-    if (["blueprint", "bundle", "agi"].includes(product) && Number.isFinite(n) && n > 0) out[product] = Math.round(n * 100);
+    // "bundle+pack" is the bundle bought together with the Afrobeat pack (a second price for the same product).
+    if (["blueprint", "bundle", "bundle+pack", "agi"].includes(product) && Number.isFinite(n) && n > 0) out[product] = Math.round(n * 100);
   }
   return out;
 }
