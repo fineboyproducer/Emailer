@@ -180,6 +180,22 @@ const wat = (iso) => new Date(iso + "+01:00").getTime();
   assert.equal(stj.ok, true); assert.equal(stj.emails, 21); assert.equal(stj.paystackWebhookConfigured, true); assert.ok(!JSON.stringify(stj).includes(PSK));
   step("status endpoint: reports the setup and never shows a secret");
 
+  // 10b. A one-off broadcast goes out the same way: daytime only, once per person, within the cap, after the sequence emails.
+  const bday = Date.parse("2026-11-20T10:00:00+01:00");
+  r = await runSequence({ now: Date.parse("2026-11-20T03:00:00+01:00"), dryRun: true });
+  assert.ok(!r.would_send.some((x) => x.startsWith("X1")), "no broadcast at 3 AM");
+  r = await runSequence({ now: bday, dryRun: true });
+  assert.ok(r.would_send.some((x) => x.startsWith("X1 ->")), "broadcast is due in the daytime");
+  const bBefore = sent.length;
+  process.env.SEQ_ONLY_EMAIL = "ada@example.com";
+  r = await runSequence({ now: bday });
+  delete process.env.SEQ_ONLY_EMAIL;
+  assert.equal(sent.slice(bBefore).filter((m) => /friends laughed/i.test(m.subject)).length, 1, "exactly one broadcast went to the one address");
+  assert.ok(sent.at(-1).html.includes("bundle_click") && sent.at(-1).html.includes("Unsubscribe"));
+  r = await runSequence({ now: bday + 5 * 60000, dryRun: true });
+  assert.ok(!r.would_send.some((x) => x.startsWith("X1 -> ada")), "never twice to the same person");
+  step("broadcast: daytime only, one per person, link and unsubscribe present");
+
   // 11. The scheduler call carries the sequence along and a sequence problem cannot break reminders.
   h = await fetch(`${BASE}/api/public/live/cron?dry_run=1`, { method: "POST", headers: { "x-cron-secret": CRON } }); const cj = await h.json();
   assert.ok(cj.sequence && cj.sequence.dryRun === true); step("the existing scheduler call also runs the sequence (here as a dry run)");

@@ -5,7 +5,7 @@ const { pool } = require("../db");
 const { sendEmail, configStatus } = require("../emailProvider");
 const { WAT_OFFSET_MIN } = require("../live/config");
 const { sequenceConfig } = require("./config");
-const { loadSteps } = require("./content");
+const { loadSteps, loadBroadcasts } = require("./content");
 const { render } = require("./render");
 const { mask, maskIn } = require("../live/mask");
 
@@ -32,7 +32,7 @@ function watDayStartMs(nowMs) {
 //   purchases: [{ email, product, atMs }]
 //   buyers:    Map(email -> { name, token })                    active contacts, used for the buyer track
 //   logs:      [{ email, step, status, attempts, updated_at }]
-function plan(nowMs, { leads, purchases, buyers, logs }, cfg, steps = loadSteps()) {
+function plan(nowMs, { leads, purchases, buyers, logs, audience = [] }, cfg, steps = loadSteps(), broadcasts = loadBroadcasts()) {
   const logBy = new Map(logs.map((l) => [`${l.email}|${l.step}`, l]));
   const bought = new Set(purchases.map((p) => p.email));
   const daySteps = steps.filter((s) => s.unit === "day" && (s.track === "lead" || s.track === "long"));
@@ -74,7 +74,25 @@ function plan(nowMs, { leads, purchases, buyers, logs }, cfg, steps = loadSteps(
       jobs.push({ email: p.email, name: who.name, token: who.token, step, dueMs: at });
     }
   }
-  return jobs.sort((a, b) => a.dueMs - b.dueMs);
+  jobs.sort((a, b) => a.dueMs - b.dueMs);
+
+  // One-off broadcasts to the whole active list. They go after the sequence emails (which have a short
+  // window), only in daytime WAT, start on their date, and keep catching up for a week if the daily cap
+  // holds some back. Anyone who has bought the bundle is left out, and nobody gets the same one twice.
+  const watHour = new Date(nowMs + WAT_OFFSET_MIN * MIN).getUTCHours();
+  const bundleBuyers = new Set(purchases.filter((p) => p.product === "bundle").map((p) => p.email));
+  const extra = [];
+  for (const b of broadcasts) {
+    const start = watMidnightMs(b.date) + cfg.sendHourWat * HOUR;
+    if (nowMs < start || nowMs >= start + 7 * DAY) continue;
+    if (watHour < cfg.sendHourWat || watHour >= 21) continue;
+    for (const c of audience) {
+      if (!wanted(c.email) || bundleBuyers.has(c.email)) continue;
+      if (!retryable(c.email, b.id)) continue;
+      extra.push({ email: c.email, name: c.name, token: c.token, step: b, dueMs: start });
+    }
+  }
+  return jobs.concat(extra);
 }
 
 function unsubscribeUrl(cfg, token) {
@@ -90,6 +108,13 @@ async function loadLeads() {
       WHERE c.status = 'active'
       GROUP BY c.id, c.email, c.name, c.unsubscribe_token
      HAVING bool_and(r.unsubscribed_at IS NULL)`
+  );
+  return rows;
+}
+
+async function loadAudience() {
+  const { rows } = await pool.query(
+    "SELECT lower(email) AS email, name, unsubscribe_token AS token FROM contacts WHERE status = 'active' ORDER BY id"
   );
   return rows;
 }
@@ -177,11 +202,11 @@ async function runSequence({ dryRun = false, now = Date.now() } = {}) {
     if (!configStatus().configured) return { ok: false, enabled: cfg.enabled, error: "Email is not configured." };
     if (!cfg.appUrl) return { ok: false, enabled: cfg.enabled, error: "APP_URL is not set, so unsubscribe links can't be built." };
 
-    const [leads, purchases, logs] = await Promise.all([loadLeads(), loadPurchases(), loadLogs()]);
+    const [leads, purchases, logs, audience] = await Promise.all([loadLeads(), loadPurchases(), loadLogs(), loadAudience()]);
     const buyers = await loadBuyers([...new Set(purchases.map((p) => p.email))]);
     const logByKey = new Map(logs.map((l) => [`${l.email}|${l.step}`, l]));
 
-    const due = plan(now, { leads, purchases, buyers, logs }, cfg);
+    const due = plan(now, { leads, purchases, buyers, logs, audience }, cfg);
     const used = await sentToday(now);
     const room = Math.max(0, cfg.dailyCap - used);
     const jobs = due.slice(0, Math.min(room, cfg.maxPerRun));
@@ -220,8 +245,9 @@ async function runSequence({ dryRun = false, now = Date.now() } = {}) {
 async function sendTest(stepId, name) {
   const cfg = sequenceConfig();
   if (!cfg.testEmail) return { ok: false, error: "SEQ_TEST_EMAIL is not set." };
-  const step = loadSteps().find((s) => s.id.toLowerCase() === String(stepId || "").toLowerCase());
-  if (!step) return { ok: false, error: "Unknown step. Use one of: " + loadSteps().map((s) => s.id).join(", ") };
+  const all = loadSteps().concat(loadBroadcasts());
+  const step = all.find((s) => s.id.toLowerCase() === String(stepId || "").toLowerCase());
+  if (!step) return { ok: false, error: "Unknown step. Use one of: " + all.map((s) => s.id).join(", ") };
   if (!configStatus().configured) return { ok: false, error: "Email is not configured." };
   if (!cfg.appUrl) return { ok: false, error: "APP_URL is not set." };
   const result = await sendStep(cfg, step, name || "there", "preview-link-not-real-" + crypto.randomBytes(4).toString("hex"), { to: cfg.testEmail, subjectPrefix: "[TEST] " });
