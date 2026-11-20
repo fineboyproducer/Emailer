@@ -41,3 +41,13 @@ Also make sure the person is in `contacts` (they are if they registered for a li
 
 ## Stop it
 Set `SEQ_ENABLED` to anything but `true` and restart. Nothing else sends.
+
+## One-off broadcasts (e.g. "click to the bundle page")
+
+Broadcast emails live in `src/sequence/broadcasts.md` (this is also where old ones are kept for reuse). Header: `=== X1 | broadcast | on 2026-11-20 ===`.
+
+- Sent by the same scheduler as the sequence: from 8 AM WAT on that date until 9 PM WAT, for up to 7 days, within `SEQ_DAILY_CAP` and always after the sequence emails.
+- Goes to every active contact. Unsubscribed contacts and bundle buyers are left out. Nobody gets the same ID twice.
+- Test it first: `POST /api/public/live/sequence/test?step=X1` (header `x-cron-secret`). It only ever goes to `SEQ_TEST_EMAIL`.
+- To reuse: copy the block, give it a new ID (X2, X3...) and a new date.
+- To stop one: set `SEQ_ENABLED=false` on Render (pauses everything), or remove its block and redeploy.

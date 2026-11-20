@@ -4,6 +4,8 @@ const fs = require("fs");
 const path = require("path");
 
 const HEADER = /^=== (\w+) \| (lead|long|buyer-blueprint|buyer-bundle) \| (day|hours) (\d+) ===$/;
+// One-off sends to the whole list live in broadcasts.md: "=== X1 | broadcast | on 2026-11-20 ===".
+const BROADCAST_HEADER = /^=== (\w+) \| (broadcast) \| on (\d{4}-\d{2}-\d{2}) ===$/;
 
 // Reads src/sequence/emails.md into [{ id, track, unit, n, subject, preview, body }].
 function parseSteps(src) {
@@ -11,8 +13,12 @@ function parseSteps(src) {
   let cur = null;
   for (const line of String(src).split(/\r?\n/)) {
     const m = HEADER.exec(line.trim());
+    const bm = m ? null : BROADCAST_HEADER.exec(line.trim());
     if (m) {
       cur = { id: m[1], track: m[2], unit: m[3], n: Number(m[4]), lines: [] };
+      steps.push(cur);
+    } else if (bm) {
+      cur = { id: bm[1], track: "broadcast", unit: "on", n: 0, date: bm[3], lines: [] };
       steps.push(cur);
     } else if (cur) {
       cur.lines.push(line);
@@ -29,7 +35,7 @@ function parseSteps(src) {
     if (!subject || !preview) throw new Error(`Email ${s.id}: needs a "Subject:" line then a "Preview:" line`);
     const body = lines.slice(i).join("\n").trim();
     if (!body) throw new Error(`Email ${s.id}: empty body`);
-    return { id: s.id, track: s.track, unit: s.unit, n: s.n, subject: subject[1].trim(), preview: preview[1].trim(), body };
+    return { id: s.id, track: s.track, unit: s.unit, n: s.n, date: s.date, subject: subject[1].trim(), preview: preview[1].trim(), body };
   });
 }
 
@@ -39,4 +45,10 @@ function loadSteps() {
   return cache;
 }
 
-module.exports = { parseSteps, loadSteps };
+let bcache = null;
+function loadBroadcasts() {
+  if (!bcache) bcache = parseSteps(fs.readFileSync(path.join(__dirname, "broadcasts.md"), "utf8"));
+  return bcache;
+}
+
+module.exports = { parseSteps, loadSteps, loadBroadcasts };

@@ -166,3 +166,33 @@ test("paystack: signature check and product mapping", () => {
   assert.equal(productForAmount(550000, "NGN", cfg), null, "the Release Checklist is not one of the three");
   assert.equal(productForAmount(3500000, "USD", cfg), null);
 });
+
+test("plan: a broadcast goes to the whole active list in daytime, once, never to bundle buyers", () => {
+  const { loadBroadcasts } = require("../src/sequence/content");
+  const bc = loadBroadcasts();
+  const audience = [
+    { email: "ada@example.com", name: "Ada", token: "t1" },
+    { email: "ben@example.com", name: "Ben", token: "t2" },
+    { email: "cy@example.com", name: "Cy", token: "t3" },
+  ];
+  const bundleBuyer = { email: "ben@example.com", product: "bundle", atMs: wat("2026-11-01T10:00:00") };
+  const base = { leads: [], purchases: [bundleBuyer], buyers: new Map(), logs: [], audience };
+  const who = (jobs) => jobs.map((j) => j.email);
+  assert.deepEqual(who(plan(wat("2026-11-20T07:59:00"), base, cfg, steps, bc)), [], "not before 8 AM WAT");
+  assert.deepEqual(who(plan(wat("2026-11-20T08:00:00"), base, cfg, steps, bc)), ["ada@example.com", "cy@example.com"], "bundle buyer excluded");
+  assert.deepEqual(who(plan(wat("2026-11-20T21:00:00"), base, cfg, steps, bc)), [], "not at night");
+  assert.deepEqual(who(plan(wat("2026-11-23T10:00:00"), base, cfg, steps, bc)).length, 2, "keeps catching up for a week");
+  assert.deepEqual(who(plan(wat("2026-11-28T10:00:00"), base, cfg, steps, bc)), [], "stops after a week");
+  const sent = { ...base, logs: [{ email: "ada@example.com", step: "X1", status: "sent", attempts: 1, updated_at: new Date() }] };
+  assert.deepEqual(who(plan(wat("2026-11-20T10:00:00"), sent, cfg, steps, bc)), ["cy@example.com"], "never twice");
+  const noAud = plan(wat("2026-11-20T10:00:00"), { ...base, audience: [] }, cfg, steps, bc);
+  assert.equal(noAud.length, 0);
+});
+
+test("plan: sequence emails are queued ahead of a broadcast when the daily cap is tight", () => {
+  const { loadBroadcasts } = require("../src/sequence/content");
+  const lead = { email: "ada@example.com", name: "Ada", token: "t1", anchor: "2026-11-13" };
+  const jobs = plan(wat("2026-11-20T10:00:00"), { leads: [lead], purchases: [], buyers: new Map(), logs: [sentLog("B1")], audience: [{ email: "zed@example.com", name: "Zed", token: "t9" }] }, cfg, steps, loadBroadcasts());
+  assert.ok(jobs.length >= 2);
+  assert.equal(jobs[jobs.length - 1].step.id, "X1", "the broadcast is last in line");
+});
